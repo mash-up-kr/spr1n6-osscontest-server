@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17.8-alpine
+    container_name: aidocs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aidocs
+      POSTGRES_USER: aidocs
+      POSTGRES_PASSWORD: aidocs
+      TZ: Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - aidocs-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aidocs -d aidocs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  aidocs-postgres-data:

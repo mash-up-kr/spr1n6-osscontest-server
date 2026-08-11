@@ -1,0 +1,39 @@
+# 환경 변수 (.env.example은 커밋 대상이므로 제외하지 않는다)
+.env
+.env.local
+!.env.example
+
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Kotlin / JVM ###
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.log
+hs_err_pid*
+replay_pid*
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### Eclipse / VS Code ###
+.classpath
+.project
+.settings/
+bin/
+.vscode/
+
+### macOS ###
+.DS_Store
