@@ -8,7 +8,6 @@
 -- -----------------------------------------------------------------------------
 -- 0. 확장
 --
--- local Docker 이미지에도 pgvector 가 포함되어 있어야 한다.
 -- opencrypto 는 설치하지 않는다. 컬럼 타입(BYTEA)은 확장과 무관하고
 -- 암복호화는 쿼리 시점에 일어나므로, 확장이 없는 local 에서도 스키마 생성은 성공한다.
 -- -----------------------------------------------------------------------------
@@ -359,6 +358,10 @@ CREATE UNIQUE INDEX uq_indexing_job_active_version
 CREATE INDEX idx_indexing_job_retry
     ON indexing_job (status, next_retry_at)
     WHERE status IN ('PENDING', 'RETRY_WAIT');
+
+-- 한 문서 버전의 인덱싱 이력 조회
+CREATE INDEX idx_indexing_job_version
+    ON indexing_job (document_version_id, created_at DESC);
 
 CREATE INDEX idx_chunk_document_version
     ON document_chunk (document_version_id, chunk_no);
