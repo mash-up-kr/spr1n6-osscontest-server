@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:17.8-alpine
+    # 스키마에 VECTOR 타입이 있어 pgvector 가 포함된 이미지를 쓴다.
+    # postgres 공식 이미지 기반이라 환경변수와 볼륨 설정은 그대로 유효하다.
+    image: pgvector/pgvector:pg17
     container_name: aidocs-postgres
     restart: unless-stopped
     environment:
