@@ -5,6 +5,9 @@ spring:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    enabled: false
+    clean-disabled: true
   jpa:
     hibernate:
       ddl-auto: validate

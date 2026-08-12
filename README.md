@@ -55,17 +55,28 @@ cp .env.example .env
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
 
+dev 프로파일은 Flyway 자동 실행이 꺼져 있습니다. 앱을 띄워도 리모트 DB의 스키마는 바뀌지 않습니다.
+
+리모트 마이그레이션이 필요한 경우에는 아래 명령으로 적용합니다.
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=dev --spring.flyway.enabled=true'
+```
+
+적용할 때는 반드시 팀에 공유합니다. 기본적으로 [인프라 담당자](https://github.com/mingdodev)가 수행하고, 다른 팀원이 수행해야 한다면 미리 팀에 알린 뒤 진행합니다. 한 번 적용된 마이그레이션 파일을 나중에 수정하면 나머지 팀원 전원이 체크섬 불일치로 앱을 띄울 수 없게 됩니다.
+
 ---
 
 ## 프로파일 구성
 
-`local`과 `dev`는 DB 위치만 다릅니다. 애플리케이션 코드는 동일합니다.
+`local`과 `dev`는 DB 위치와 마이그레이션 실행 방식만 다릅니다. 애플리케이션 코드는 동일합니다.
 
 | 항목 | `local` | `dev` |
 |---|---|---|
 | DB | Docker PostgreSQL 17.8 | 리모트 Tmax OpenSQL v3.0 |
 | 접속 정보 | `application-local.yml` | `.env` |
 | SQL 로깅 | ON | OFF |
+| Flyway | 기동 시 자동 실행 | 수동 실행 |
 
 ---
 
