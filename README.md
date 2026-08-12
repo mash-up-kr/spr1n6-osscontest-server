@@ -46,14 +46,32 @@ docker compose up -d
 
 ### dev
 
-리모트 Tmax OpenSQL에 접속합니다. 접속 정보는 `.env`로 관리합니다.
- 
+리모트 Tmax OpenSQL에 접속합니다. DB 포트는 외부에 열려 있지 않아 SSH 터널을 거칩니다. 접속 정보는 `.env`로 관리합니다.
+
+`tunnel.sh start`는 DB를 띄우는 것이 아니라 내 컴퓨터의 `15432` 포트를 리모트 DB까지 이어주는 통로를 여는 명령입니다. 앱은 이 포트를 로컬 DB처럼 보고 접속하므로, 앱을 실행하기 전에 터널이 먼저 열려 있어야 합니다.
+
 ```bash
 cp .env.example .env
-# .env를 열어 값을 채웁니다. 값은 팀 내부에서 공유받으세요.
- 
+# .env를 열어 값을 채웁니다. 값과 pem 파일은 팀 내부에서 공유받으세요.
+
+./scripts/tunnel.sh start   # 터널을 열어둔다. 백그라운드로 유지된다
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
+
+터널은 백그라운드에서 계속 떠 있어서 터미널을 닫아도 유지됩니다. 한 번 열어두면 앱을 껐다 켜도 다시 열 필요가 없고, 컴퓨터를 재부팅하면 사라지므로 다시 `start` 합니다. 이미 열려 있을 때 `start`를 또 해도 중복으로 열리지 않습니다.
+
+터널 상태는 `status`로 확인하고, 작업이 끝나면 `stop`으로 닫습니다.
+
+```bash
+./scripts/tunnel.sh status
+./scripts/tunnel.sh stop
+```
+
+앱이 `Connection refused`로 뜬다면 대개 터널이 닫힌 경우이니 `status`부터 확인합니다.
+
+pem 파일은 프로젝트 폴더 밖에 두고 `chmod 600`으로 권한을 맞춥니다. `.env`에는 키 값이 아니라 파일 경로를 적고, 실행 위치와 무관하도록 절대경로나 `~/`로 시작하는 경로를 씁니다.
+
+로컬 포트 기본값은 `15432`입니다. `local` 프로파일의 Docker PostgreSQL이 5432를 쓰기 때문에, 터널까지 5432로 열면 컨테이너가 떠 있을 때 터널이 열리지 않거나 의도한 것과 다른 DB에 붙게 됩니다.
 
 ---
 
@@ -64,6 +82,7 @@ cp .env.example .env
 | 항목 | `local` | `dev` |
 |---|---|---|
 | DB | Docker PostgreSQL 17.8 | 리모트 Tmax OpenSQL v3.0 |
+| 접속 경로 | 직접 | SSH 터널 |
 | 접속 정보 | `application-local.yml` | `.env` |
 | SQL 로깅 | ON | OFF |
 
@@ -75,13 +94,20 @@ cp .env.example .env
 
 | 변수명 | 필수 | 설명 |
 |---|:---:|---|
-| `DB_HOST` | O | OpenSQL 호스트 |
-| `DB_PORT` | X | 포트 (기본 5432) |
+| `DB_HOST` | O | DB 호스트. 터널을 거치므로 `127.0.0.1` |
+| `DB_PORT` | X | 포트 (기본 5432). `TUNNEL_LOCAL_PORT`와 같은 값 |
 | `DB_NAME` | O | 데이터베이스명 |
 | `DB_USERNAME` | O | 접속 계정 |
 | `DB_PASSWORD` | O | 접속 비밀번호 |
+| `SSH_HOST` | O | 터널을 붙일 서버 주소 |
+| `SSH_PORT` | X | SSH 포트 |
+| `SSH_USER` | O | SSH 계정 |
+| `SSH_KEY_PATH` | O | pem 파일 경로 (절대경로 또는 `~/`) |
+| `TUNNEL_LOCAL_PORT` | X | 로컬에서 열 포트 (기본 15432) |
+| `TUNNEL_REMOTE_HOST` | X | 서버에서 본 DB 주소 (기본 127.0.0.1) |
+| `TUNNEL_REMOTE_PORT` | X | 서버에서 본 DB 포트 (기본 5432) |
 
-`.env`와 실제 접속 정보는 커밋하지 않습니다.
+`.env`와 실제 접속 정보, pem 파일은 커밋하지 않습니다.
 
 ---
 

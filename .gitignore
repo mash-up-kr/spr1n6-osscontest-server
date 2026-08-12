@@ -3,6 +3,10 @@
 .env.local
 !.env.example
 
+# SSH 키와 터널 제어 소켓
+*.pem
+.ssh-tunnel.sock
+
 ### Gradle ###
 .gradle/
 build/
