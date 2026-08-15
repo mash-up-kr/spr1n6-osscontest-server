@@ -149,6 +149,7 @@ CREATE TABLE outbox_event (
     tenant_id                   BIGINT NOT NULL,
     document_id                 BIGINT NOT NULL,
     document_version_id         BIGINT NOT NULL,
+    retry_of_event_id           UUID,
 
     event_type                  VARCHAR(50) NOT NULL,
     event_schema_version        INTEGER NOT NULL DEFAULT 1,
@@ -157,7 +158,7 @@ CREATE TABLE outbox_event (
 
     status                      VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     publish_attempt_count       INTEGER NOT NULL DEFAULT 0,
-    next_retry_at               TIMESTAMPTZ,
+    next_attempt_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     locked_by                   VARCHAR(255),
     locked_at                   TIMESTAMPTZ,
     published_at                TIMESTAMPTZ,
@@ -182,12 +183,16 @@ CREATE TABLE outbox_event (
             'PENDING',
             'PUBLISHING',
             'PUBLISHED',
-            'FAILED'
+            'DEAD'
         )),
     CONSTRAINT ck_outbox_publish_attempt_count
         CHECK (publish_attempt_count >= 0)
 );
 
+COMMENT ON COLUMN outbox_event.next_attempt_at IS
+    '이 시각부터 발행 대상이 된다. 최초 행도 값을 가진다.';
+COMMENT ON COLUMN outbox_event.retry_of_event_id IS
+    '재발행 건이 가리키는 원본 이벤트. 신규 업로드 건은 NULL 이다.';
 COMMENT ON COLUMN outbox_event.locked_at IS
     'PUBLISHING 상태로 죽은 행을 회수하는 기준 시각. 없으면 좀비 행이 영원히 남는다.';
 COMMENT ON COLUMN outbox_event.trace_id IS
@@ -337,13 +342,8 @@ CREATE INDEX idx_document_version_document
 
 -- 릴레이 폴링 전용. 발행이 끝난 행은 빠지므로 Outbox 가 쌓여도 크기가 유지된다.
 CREATE INDEX idx_outbox_pending
-    ON outbox_event (created_at)
+    ON outbox_event (next_attempt_at, id)
     WHERE status = 'PENDING';
-
--- 재시도 대기 중인 발행 건 조회
-CREATE INDEX idx_outbox_retry
-    ON outbox_event (next_retry_at)
-    WHERE status = 'FAILED';
 
 -- PUBLISHING 상태로 멈춘 좀비 행 회수
 CREATE INDEX idx_outbox_stuck
