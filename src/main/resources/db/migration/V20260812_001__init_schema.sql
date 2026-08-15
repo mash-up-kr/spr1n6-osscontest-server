@@ -235,8 +235,7 @@ CREATE TABLE indexing_job (
             'PROCESSING',
             'RETRY_WAIT',
             'COMPLETED',
-            'FAILED',
-            'STALE'
+            'FAILED'
         )),
     CONSTRAINT ck_indexing_job_attempt_count
         CHECK (attempt_count >= 0)
