@@ -204,8 +204,10 @@ COMMENT ON COLUMN outbox_event.next_attempt_at IS
     '이 시각부터 발행 대상이 된다. 최초 행도 값을 가진다.';
 COMMENT ON COLUMN outbox_event.retry_of_event_id IS
     '재발행 건이 가리키는 원본 이벤트. 신규 업로드 건은 NULL 이다.';
+COMMENT ON COLUMN outbox_event.locked_by IS
+    '이 행을 집은 릴레이 인스턴스. 릴레이를 다중화하면 한 행을 둘이 집는 것을 막는다.';
 COMMENT ON COLUMN outbox_event.locked_at IS
-    'PUBLISHING 상태로 죽은 행을 회수하는 기준 시각. 없으면 좀비 행이 영원히 남는다.';
+    'PUBLISHING 으로 바뀐 시각. 발행 중 죽은 행을 회수하는 기준이라 릴레이가 한 대여도 필요하다.';
 COMMENT ON COLUMN outbox_event.trace_id IS
     '트리거는 애플리케이션 트레이스 컨텍스트에 접근할 수 없으므로, '
     '트랜잭션에서 SET LOCAL app.trace_id 로 넘긴 값을 읽는다.';
