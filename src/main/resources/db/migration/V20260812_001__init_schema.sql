@@ -60,7 +60,8 @@ CREATE TABLE document (
     owner_principal_id          VARCHAR(255) NOT NULL,
 
     title                       VARCHAR(255) NOT NULL,
-    latest_version_no           BIGINT NOT NULL DEFAULT 0,
+    latest_upload_version_no    BIGINT NOT NULL DEFAULT 0,
+    latest_embedding_version_no BIGINT NOT NULL DEFAULT 0,
     searchable_version_id       BIGINT,
 
     deleted_at                  TIMESTAMPTZ,
@@ -73,12 +74,22 @@ CREATE TABLE document (
         REFERENCES tenant(id),
     CONSTRAINT uk_document_id_tenant
         UNIQUE (id, tenant_id),
-    CONSTRAINT ck_document_latest_version_no
-        CHECK (latest_version_no >= 0),
+    CONSTRAINT ck_document_latest_upload_version_no
+        CHECK (latest_upload_version_no >= 0),
+    CONSTRAINT ck_document_latest_embedding_version_no
+        CHECK (latest_embedding_version_no >= 0),
+    CONSTRAINT ck_document_embedding_not_ahead_of_upload
+        CHECK (latest_embedding_version_no <= latest_upload_version_no),
     CONSTRAINT ck_document_purged_after_deleted
         CHECK (purged_at IS NULL OR deleted_at IS NOT NULL)
 );
 
+COMMENT ON COLUMN document.latest_upload_version_no IS
+    '마지막으로 발급된 version_no. 다음 버전 번호 채번에 쓰는 카운터.';
+COMMENT ON COLUMN document.latest_embedding_version_no IS
+    '임베딩이 완료된 가장 최신 version_no.';
+COMMENT ON COLUMN document.searchable_version_id IS
+    '검색 대상 document_version 의 PK. latest_embedding_version_no 이하 버전만 지정한다.';
 COMMENT ON COLUMN document.purged_at IS
     '물리 정리 완료 시각. 청크 삭제와 원본 삭제가 모두 끝난 뒤 마지막에 기록한다. '
     'NULL 이면 아직 정리되지 않았다는 뜻이므로 스케줄러가 다시 집는다.';
