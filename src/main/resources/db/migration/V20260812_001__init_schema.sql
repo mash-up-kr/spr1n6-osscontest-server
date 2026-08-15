@@ -111,7 +111,7 @@ CREATE TABLE document_version (
     content_hash                VARCHAR(128) NOT NULL,
 
     source_metadata             JSONB,
-    extracted_metadata          BYTEA,
+    extracted_metadata          JSONB,
 
     chunk_count                 INTEGER,
     indexed_at                  TIMESTAMPTZ,
@@ -137,8 +137,7 @@ CREATE TABLE document_version (
 COMMENT ON COLUMN document_version.original_filename IS
     '암호화 대상. opencrypto 함수로 암복호화한다.';
 COMMENT ON COLUMN document_version.extracted_metadata IS
-    '암호화 대상. 암호화된 바이트열이므로 DB 에서 내용으로 조회하거나 인덱싱할 수 없고, '
-    '복호화 후 애플리케이션에서 해석한다.';
+    '문서 파싱이 아니라 AI 가 생성한 메타데이터.';
 
 
 -- document.searchable_version_id 의 복합 FK 는 document_version 생성 후 추가한다.
