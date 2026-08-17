@@ -270,8 +270,7 @@ CREATE TABLE indexing_job (
 -- 7. document_chunk
 --
 -- VECTOR(1536) 의 차원은 잠정값이다. 임베딩 모델이 확정되면 변경한다.
--- tenant_id 는 document 에서 내려온 반정규화 컬럼이다. 검색 필터와 벡터 컬럼을
--- 같은 테이블에 두기 위한 것이라 값의 일치는 복합 FK 로 강제한다.
+-- tenant_id 는 document 에서 내려온 반정규화 컬럼이다.
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE document_chunk (
@@ -392,8 +391,6 @@ CREATE INDEX idx_indexing_job_version
 CREATE INDEX idx_chunk_document_version
     ON document_chunk (document_version_id, chunk_no);
 
--- 하이브리드 검색의 키워드 쪽. 색인 구성(simple)은 검색 튜닝 결과에 따라
--- 별도 마이그레이션으로 바꿀 수 있다.
 CREATE INDEX idx_document_chunk_content_tsv
     ON document_chunk USING GIN (to_tsvector('simple', content));
 
@@ -470,7 +467,6 @@ CREATE TRIGGER trg_document_version_outbox
     EXECUTE FUNCTION fn_outbox_indexing_requested();
 
 
--- 삭제는 deleted_at 을 채우는 소프트 삭제이므로 UPDATE 를 감시한다.
 -- 청크 정리는 워커가 이 이벤트를 받아서 수행한다.
 CREATE OR REPLACE FUNCTION fn_outbox_document_deleted()
 RETURNS TRIGGER AS $$
@@ -517,7 +513,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- WHEN 절이 이벤트를 삭제 시점 한 번으로 제한한다.
 -- deleted_at 이 이미 채워진 행을 다시 UPDATE 해도 이벤트가 늘지 않는다.
 CREATE TRIGGER trg_document_deleted_outbox
     AFTER UPDATE ON document
