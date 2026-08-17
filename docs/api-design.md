@@ -30,6 +30,7 @@
 - **인덱싱 진행 상태는 SSE로 밀어 줍니다.** 단건 조회용 엔드포인트도 함께 둡니다.
 - **검색 대상 버전은 임베딩이 끝날 때마다 최신으로 갱신됩니다.** 수동 지정은 다음 임베딩이
   완료될 때까지 유효합니다.
+- **검색 결과는 매칭된 청크의 앞뒤 문맥을 `contextBefore`/`contextAfter`로 함께 반환합니다.**
 
 ---
 
@@ -400,11 +401,55 @@ POST /api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry
 
 ## 8. 검색
 
+### 검색 실행
+
 ```http
 POST /api/v1/search
+Content-Type: application/json
+
+{
+  "query": "3개월 이내 해지 시 위약금",
+  "topK": 10,
+  "contextWindow": 1
+}
 ```
 
-계약은 검색 담당과 맞춥니다.
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `query` | string | O | 검색 질의문 |
+| `topK` | integer | X | 기본 10, 최대 50 |
+| `contextWindow` | integer | X | 매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함), 최대 5 |
+
+```json
+200 OK
+
+{
+  "items": [
+    {
+      "chunkId": 981,
+      "documentId": 42,
+      "title": "2026 사업계획서",
+      "content": "이 경우 위약금은 계약금의 10%를 초과할 수 없다.",
+      "contextBefore": ["본 계약을 체결일로부터 3개월 이내에 해지하는 경우,"],
+      "contextAfter": ["다만 천재지변으로 인한 해지는 예외로 한다."],
+      "score": 0.0421,
+      "pageFrom": 12,
+      "pageTo": 12,
+      "sectionPath": "제3장 > 해지 조항"
+    }
+  ]
+}
+```
+
+`contextBefore`/`contextAfter`는 매칭된 청크를 기준으로 `chunk_no`가 앞·뒤로 이어지는 청크 원문
+배열입니다. 원문 순서대로 정렬되어 있어 `contextBefore` + `content` + `contextAfter` 순으로 이어
+읽을 수 있습니다. 길이는 최대 `contextWindow`이며, 문서 경계에 걸리면 그보다 짧거나 빈 배열입니다.
+
+`score`는 벡터 유사도 순위와 키워드 매칭 순위를 합산한 값입니다.
+
+**`contextWindow`는 앞뒤 문맥 깊이를 파라미터로 받습니다.**
+
+`400` `401`
 
 ---
 
