@@ -150,7 +150,7 @@ ADD CONSTRAINT fk_document_searchable_version
 -- -----------------------------------------------------------------------------
 -- 5. outbox_event
 --
--- 이벤트 타입이 INDEXING_REQUESTED 하나뿐이므로 document_version_id 는 NOT NULL 이다.
+-- DOCUMENT_DELETED 는 문서 단위 이벤트라 document_version_id 가 NULL 이다.
 -- status 이하는 릴레이 서버의 폴링 발행용 컬럼이다.
 -- -----------------------------------------------------------------------------
 
@@ -158,7 +158,7 @@ CREATE TABLE outbox_event (
     id                          UUID PRIMARY KEY,
     tenant_id                   BIGINT NOT NULL,
     document_id                 BIGINT NOT NULL,
-    document_version_id         BIGINT NOT NULL,
+    document_version_id         BIGINT,
     retry_of_event_id           UUID,
 
     event_type                  VARCHAR(50) NOT NULL,
@@ -186,8 +186,15 @@ CREATE TABLE outbox_event (
         CHECK (event_schema_version > 0),
     CONSTRAINT ck_outbox_event_type
         CHECK (event_type IN (
-            'INDEXING_REQUESTED'
+            'INDEXING_REQUESTED',
+            'DOCUMENT_DELETED'
         )),
+    CONSTRAINT ck_outbox_indexing_request_target
+        CHECK (event_type <> 'INDEXING_REQUESTED'
+               OR document_version_id IS NOT NULL),
+    CONSTRAINT ck_outbox_document_deleted_target
+        CHECK (event_type <> 'DOCUMENT_DELETED'
+               OR document_version_id IS NULL),
     CONSTRAINT ck_outbox_status
         CHECK (status IN (
             'PENDING',
@@ -199,6 +206,8 @@ CREATE TABLE outbox_event (
         CHECK (publish_attempt_count >= 0)
 );
 
+COMMENT ON COLUMN outbox_event.document_version_id IS
+    'INDEXING_REQUESTED 는 버전 단위라 값을 가지고, DOCUMENT_DELETED 는 문서 단위라 NULL 이다.';
 COMMENT ON COLUMN outbox_event.next_attempt_at IS
     '이 시각부터 발행 대상이 된다. 최초 행도 값을 가진다.';
 COMMENT ON COLUMN outbox_event.retry_of_event_id IS
@@ -459,3 +468,59 @@ CREATE TRIGGER trg_document_version_outbox
     AFTER INSERT ON document_version
     FOR EACH ROW
     EXECUTE FUNCTION fn_outbox_indexing_requested();
+
+
+-- 삭제는 deleted_at 을 채우는 소프트 삭제이므로 UPDATE 를 감시한다.
+-- 청크 정리는 워커가 이 이벤트를 받아서 수행한다.
+CREATE OR REPLACE FUNCTION fn_outbox_document_deleted()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_event_id UUID;
+BEGIN
+    v_event_id := gen_random_uuid();
+
+    INSERT INTO outbox_event (
+        id,
+        tenant_id,
+        document_id,
+        document_version_id,
+        event_type,
+        event_schema_version,
+        payload,
+        trace_id
+    )
+    VALUES (
+        v_event_id,
+        NEW.tenant_id,
+        NEW.id,
+        NULL,
+        'DOCUMENT_DELETED',
+        1,
+        jsonb_build_object(
+            'tenantId',   NEW.tenant_id,
+            'deletedAt',  to_char(
+                              NEW.deleted_at AT TIME ZONE 'UTC',
+                              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+                          ),
+            'occurredAt', to_char(
+                              CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+                              'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+                          )
+        ),
+        current_setting('app.trace_id', true)
+    );
+
+    PERFORM pg_notify('outbox_event', v_event_id::text);
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- WHEN 절이 이벤트를 삭제 시점 한 번으로 제한한다.
+-- deleted_at 이 이미 채워진 행을 다시 UPDATE 해도 이벤트가 늘지 않는다.
+CREATE TRIGGER trg_document_deleted_outbox
+    AFTER UPDATE ON document
+    FOR EACH ROW
+    WHEN (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL)
+    EXECUTE FUNCTION fn_outbox_document_deleted();
