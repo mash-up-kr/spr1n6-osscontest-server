@@ -4,6 +4,8 @@ spring:
     username: aidocs
     password: aidocs
   jpa:
+    hibernate:
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
