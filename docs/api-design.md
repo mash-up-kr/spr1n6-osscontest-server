@@ -14,7 +14,7 @@
 - 인덱싱은 비동기입니다. 업로드 응답은 인덱싱을 기다리지 않습니다.
 - Job 상태는 다섯입니다. `PENDING` / `PROCESSING` / `RETRY_WAIT` / `COMPLETED` / `FAILED`.
 - 삭제 요청은 `deleted_at`에 기록하고, 그 뒤의 물리 정리(청크와 원본 파일 삭제)는 Worker 가
-  `DOCUMENT_DELETED` 이벤트를 받아 수행한 뒤 `purged_at`에 기록합니다.
+  `DOCUMENT_DELETED` 이벤트를 받아 수행한 뒤 `purged_at`에 기록합니다. 유예 기간은 없습니다.
 - 시연은 데모 유저를 시드한 뒤 UI에서 선택하는 방식이며, 토큰 발급은 범위에서 제외합니다.
 
 ---
@@ -22,6 +22,8 @@
 ## 2. 결정 사항
 
 - **업로드는 `multipart/form-data`로 서버를 거칩니다.** presigned URL 2단계는 보류했습니다.
+- **파일은 20MB 까지, PDF · DOCX · Markdown 만 받습니다.** 크기를 넘으면 `413`,
+  형식이 다르면 `415` 입니다.
 - **재인덱싱 Outbox 행은 API 서버가 직접 INSERT 합니다.** 새 `source_event_id`로 발행하고
   `retry_of_event_id`에 원본 이벤트를 넣습니다.
 - **재인덱싱은 임베딩이 실패한 버전에만 허용합니다.** 그 외에는 `409`입니다.
@@ -118,6 +120,12 @@ Content-Type: multipart/form-data
 |---|---|---|---|
 | `file` | file | O | 원본 파일 |
 | `title` | string | X | 없으면 파일명에서 확장자를 뗀 값 |
+
+`file`은 20MB 이하이며 MIME 이 다음 셋 중 하나여야 합니다.
+
+- `application/pdf`
+- `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- `text/markdown`
 
 ```json
 202 Accepted
