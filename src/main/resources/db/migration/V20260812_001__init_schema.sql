@@ -383,6 +383,11 @@ CREATE INDEX idx_indexing_job_version
 CREATE INDEX idx_chunk_document_version
     ON document_chunk (document_version_id, chunk_no);
 
+-- 하이브리드 검색의 키워드 쪽. 색인 구성(simple)은 검색 튜닝 결과에 따라
+-- 별도 마이그레이션으로 바꿀 수 있다.
+CREATE INDEX idx_document_chunk_content_tsv
+    ON document_chunk USING GIN (to_tsvector('simple', content));
+
 CREATE INDEX idx_access_scope_principal
     ON document_access_scope (
         tenant_id,
