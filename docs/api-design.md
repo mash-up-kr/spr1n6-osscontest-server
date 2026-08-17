@@ -13,8 +13,8 @@
   `latest_embedding_version_no`(임베딩 성공), `searchable_version_id`(검색 대상).
 - 인덱싱은 비동기입니다. 업로드 응답은 인덱싱을 기다리지 않습니다.
 - Job 상태는 다섯입니다. `PENDING` / `PROCESSING` / `RETRY_WAIT` / `COMPLETED` / `FAILED`.
-- 삭제 요청은 `deleted_at`에 기록하고, 그 뒤의 물리 정리(청크와 원본 파일 삭제)는 `purged_at`으로
-  관리합니다.
+- 삭제 요청은 `deleted_at`에 기록하고, 그 뒤의 물리 정리(청크와 원본 파일 삭제)는 Worker 가
+  `DOCUMENT_DELETED` 이벤트를 받아 수행한 뒤 `purged_at`에 기록합니다.
 - 시연은 데모 유저를 시드한 뒤 UI에서 선택하는 방식이며, 토큰 발급은 범위에서 제외합니다.
 
 ---
@@ -27,7 +27,8 @@
 - **재인덱싱은 임베딩이 실패한 버전에만 허용합니다.** 그 외에는 `409`입니다.
 - **같은 파일을 다시 올려도 버전을 만듭니다.** 응답의 `duplicateOfVersionNo`로 알립니다.
 - **다른 테넌트의 문서는 `404`입니다.** 존재 자체를 노출하지 않습니다.
-- **인덱싱 진행 상태는 SSE로 밀어 줍니다.** 단건 조회용 엔드포인트도 함께 둡니다.
+- **인덱싱 진행 상태는 클라이언트가 폴링합니다.** 진행 상태 조회 엔드포인트를 주기적으로
+  호출합니다.
 - **검색 대상 버전은 임베딩이 끝날 때마다 최신으로 갱신됩니다.** 수동 지정은 다음 임베딩이
   완료될 때까지 유효합니다.
 - **검색 결과는 매칭된 청크의 앞뒤 문맥을 `contextBefore`/`contextAfter`로 함께 반환합니다.**
@@ -198,7 +199,8 @@ DELETE /api/v1/documents/{documentId}
 204 No Content
 ```
 
-`deleted_at`만 기록합니다. 청크와 원본 파일은 스케줄러가 정리합니다.
+`deleted_at`만 기록합니다. 이때 `DOCUMENT_DELETED` 이벤트가 발행되고, Worker 가 원본 파일과
+청크를 지운 뒤 `purged_at`을 기록합니다.
 
 `404`
 
@@ -286,6 +288,8 @@ GET /api/v1/documents/{documentId}/versions
 }
 ```
 
+각 항목의 `indexing`은 진행 상태 조회와 같은 기준입니다.
+
 `404`
 
 ### 버전 상세
@@ -335,7 +339,7 @@ Content-Type: application/json
 
 ## 7. 인덱싱
 
-### 진행 상태 단건 조회
+### 진행 상태 조회
 
 ```http
 GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
@@ -355,26 +359,9 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
 }
 ```
 
-`indexing_job`의 최신 행입니다. Job이 아직 없으면 `status`는 `PENDING`입니다.
-
-`404`
-
-### 진행 상태 SSE 구독
-
-```http
-GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing/events
-Accept: text/event-stream
-```
-
-```
-event: indexing
-data: {"status":"PROCESSING","attemptCount":1}
-
-event: indexing
-data: {"status":"COMPLETED","chunkCount":184,"searchableVersionNo":3}
-```
-
-`COMPLETED` 또는 `FAILED`를 보내고 스트림을 닫습니다.
+해당 버전의 가장 최근 `outbox_event`에 대응하는 `indexing_job` 행입니다. 워커가 아직 그 이벤트를
+소비하지 않았으면 `status`는 `PENDING`입니다.
+`COMPLETED` 와 `FAILED` 가 종료 상태이며, 클라이언트는 여기서 폴링을 멈춥니다.
 
 `404`
 
@@ -394,6 +381,7 @@ POST /api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry
 ```
 
 임베딩이 실패한 버전에만 허용합니다. 그 외에는 `409`입니다.
+아직 워커가 소비하지 않은 재인덱싱 이벤트가 남아 있는 경우에도 `409`입니다.
 
 `404` `409`
 
