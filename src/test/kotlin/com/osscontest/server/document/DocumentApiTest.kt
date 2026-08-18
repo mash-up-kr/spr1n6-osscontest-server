@@ -16,12 +16,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.multipart
 import org.springframework.test.web.servlet.patch
+import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 import org.springframework.transaction.annotation.Transactional
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import java.util.UUID
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -338,6 +342,203 @@ class DocumentApiTest {
         }
     }
 
+    @Test
+    fun `소유자는 문서를 삭제한다`() {
+        val documentId = createDocument("삭제".toByteArray())
+
+        mockMvc.delete("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isNoContent() }
+        }
+
+        em.flush()
+        em.clear()
+
+        mockMvc.get("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("DOCUMENT_NOT_FOUND") }
+        }
+
+        val deletedAt = em.createNativeQuery("SELECT deleted_at FROM document WHERE id = :documentId")
+            .setParameter("documentId", documentId)
+            .singleResult
+        assertNotNull(deletedAt)
+    }
+
+    @Test
+    fun `인덱싱 완료 버전을 검색 대상으로 지정한다`() {
+        val documentId = createDocument("검색 대상".toByteArray())
+        val versionId = latestVersion()["id"] as Number
+
+        mockMvc.put("/api/v1/documents/$documentId/searchable-version") {
+            header(USER_ID_HEADER, user.id.toString())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"versionNo":1}"""
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("SEARCHABLE_VERSION_NOT_READY") }
+        }
+
+        em.createNativeQuery("UPDATE document_version SET indexed_at = now(), chunk_count = 3 WHERE id = :versionId")
+            .setParameter("versionId", versionId)
+            .executeUpdate()
+        em.flush()
+        em.clear()
+
+        mockMvc.put("/api/v1/documents/$documentId/searchable-version") {
+            header(USER_ID_HEADER, user.id.toString())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"versionNo":1}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.searchableVersionNo") { value(1) }
+        }
+    }
+
+    @Test
+    fun `인덱싱 상태를 조회한다`() {
+        val documentId = createDocument("인덱싱 상태".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        val sourceEventId = latestOutboxId()
+
+        createIndexingJob(
+            sourceEventId = sourceEventId,
+            documentId = documentId,
+            versionId = versionId,
+            status = "FAILED",
+            attemptCount = 2,
+            lastErrorMessage = "파싱 실패",
+        )
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.versionNo") { value(1) }
+            jsonPath("$.status") { value("FAILED") }
+            jsonPath("$.attemptCount") { value(2) }
+            jsonPath("$.lastErrorMessage") { value("파싱 실패") }
+        }
+    }
+
+    @Test
+    fun `실패한 인덱싱 작업을 재시도한다`() {
+        val documentId = createDocument("재인덱싱".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        val sourceEventId = latestOutboxId()
+        createIndexingJob(
+            sourceEventId = sourceEventId,
+            documentId = documentId,
+            versionId = versionId,
+            status = "FAILED",
+            attemptCount = 3,
+        )
+
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.versionNo") { value(1) }
+            jsonPath("$.indexing.status") { value("PENDING") }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.versionNo") { value(1) }
+            jsonPath("$.status") { value("PENDING") }
+            jsonPath("$.attemptCount") { value(0) }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.indexing.status") { value("PENDING") }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].indexing.status") { value("PENDING") }
+        }
+
+        mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].latestVersionIndexingStatus") { value("PENDING") }
+        }
+
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("INDEXING_RETRY_NOT_ALLOWED") }
+            jsonPath("$.message") { value("현재 실패 상태인 인덱싱 작업만 재시도할 수 있습니다.") }
+        }
+
+        val retryEvent = outboxRow()
+        assertEquals("INDEXING_REQUESTED", retryEvent["event_type"])
+        assertEquals(sourceEventId, retryEvent["retry_of_event_id"])
+        assertEquals(
+            setOf("tenantId", "versionNo", "sourceObjectKey", "mimeType", "fileSize", "contentHash", "occurredAt"),
+            latestOutboxPayloadKeys(),
+        )
+    }
+
+    @Test
+    fun `잡 생성 전 outbox 발행 실패 메시지를 인덱싱 상태에 포함한다`() {
+        val documentId = createDocument("발행 실패".toByteArray())
+
+        em.createNativeQuery(
+            """
+            UPDATE outbox_event
+            SET publish_attempt_count = 1,
+                last_error_message = 'Kafka 발행 실패'
+            WHERE id = :eventId
+            """.trimIndent(),
+        )
+            .setParameter("eventId", latestOutboxId())
+            .executeUpdate()
+        em.flush()
+        em.clear()
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("PENDING") }
+            jsonPath("$.attemptCount") { value(0) }
+            jsonPath("$.lastErrorMessage") { value("Kafka 발행 실패") }
+        }
+    }
+
+    @Test
+    fun `실패 상태가 아니면 인덱싱을 재시도할 수 없다`() {
+        val documentId = createDocument("재인덱싱 불가".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        createIndexingJob(
+            sourceEventId = latestOutboxId(),
+            documentId = documentId,
+            versionId = versionId,
+            status = "PROCESSING",
+            attemptCount = 1,
+        )
+
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("INDEXING_RETRY_NOT_ALLOWED") }
+        }
+    }
+
     private fun createDocument(content: ByteArray, title: String? = null): Long {
         mockMvc.multipart("/api/v1/documents") {
             file(MockMultipartFile("file", "a.pdf", "application/pdf", content))
@@ -362,9 +563,72 @@ class DocumentApiTest {
     @Suppress("UNCHECKED_CAST")
     private fun outboxRow(): Map<String, Any?> =
         em.createNativeQuery(
-            "SELECT event_type, trace_id FROM outbox_event ORDER BY created_at DESC LIMIT 1",
+            "SELECT event_type, retry_of_event_id, trace_id FROM outbox_event ORDER BY created_at DESC LIMIT 1",
             Map::class.java,
         ).singleResult as Map<String, Any?>
+
+    private fun latestOutboxId(): UUID =
+        em.createNativeQuery("SELECT id FROM outbox_event ORDER BY created_at DESC LIMIT 1")
+            .singleResult as UUID
+
+    private fun latestOutboxPayloadKeys(): Set<String> =
+        em.createNativeQuery(
+            """
+            SELECT jsonb_object_keys(payload)
+            FROM (
+                SELECT payload
+                FROM outbox_event
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) latest
+            """.trimIndent(),
+        )
+            .resultList
+            .map { it as String }
+            .toSet()
+
+    private fun createIndexingJob(
+        sourceEventId: UUID,
+        documentId: Long,
+        versionId: Long,
+        status: String,
+        attemptCount: Int,
+        lastErrorMessage: String? = null,
+    ) {
+        em.createNativeQuery(
+            """
+            INSERT INTO indexing_job (
+                source_event_id,
+                document_id,
+                document_version_id,
+                status,
+                attempt_count,
+                last_error_message,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                :sourceEventId,
+                :documentId,
+                :versionId,
+                :status,
+                :attemptCount,
+                :lastErrorMessage,
+                now(),
+                now()
+            )
+            """.trimIndent(),
+        )
+            .setParameter("sourceEventId", sourceEventId)
+            .setParameter("documentId", documentId)
+            .setParameter("versionId", versionId)
+            .setParameter("status", status)
+            .setParameter("attemptCount", attemptCount)
+            .setParameter("lastErrorMessage", lastErrorMessage)
+            .executeUpdate()
+        em.flush()
+        em.clear()
+    }
 
     private fun documentTitle(): String =
         em.createNativeQuery("SELECT title FROM document ORDER BY id DESC LIMIT 1").singleResult as String
