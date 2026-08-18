@@ -1,0 +1,24 @@
+package com.osscontest.server.search.api
+
+import com.osscontest.server.common.auth.AuthenticatedUser
+import com.osscontest.server.common.auth.CurrentUser
+import com.osscontest.server.search.application.SearchRequest
+import com.osscontest.server.search.application.SearchService
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+/** docs/api-design.md 8장. */
+@RestController
+@RequestMapping("/api/v1/search")
+class SearchController(
+    private val searchService: SearchService,
+) {
+
+    @PostMapping
+    fun search(
+        @CurrentUser user: AuthenticatedUser,
+        @RequestBody request: SearchRequest,
+    ): SearchResponse = SearchResponse(items = searchService.search(user, request))
+}
