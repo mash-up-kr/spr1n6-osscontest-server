@@ -28,6 +28,11 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+    implementation("software.amazon.awssdk:s3") {
+        // 동기 클라이언트만 쓰므로 비동기용 Netty 는 제거
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
