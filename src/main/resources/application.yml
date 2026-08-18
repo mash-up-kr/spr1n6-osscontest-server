@@ -1,6 +1,10 @@
 spring:
   application:
     name: aidocs-server
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   profiles:
     default: local
   jpa:
@@ -10,3 +14,7 @@ logging:
   pattern:
     # 로그에 요청의 traceId 를 붙여 추적성 유지
     level: "%5p [%X{traceId:-}]"
+
+server:
+  tomcat:
+    max-swallow-size: -1
