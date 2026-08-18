@@ -10,3 +10,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+storage:
+  endpoint: http://localhost:9000
+  region: ap-northeast-2
+  access-key: aidocs
+  secret-key: aidocs1234
+  bucket: aidocs-documents
