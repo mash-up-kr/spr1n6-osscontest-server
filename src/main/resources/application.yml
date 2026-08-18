@@ -7,6 +7,9 @@ spring:
       max-request-size: 21MB
   profiles:
     default: local
+  datasource:
+    hikari:
+      connection-init-sql: "SELECT set_config('app.encryption_key', '${DB_ENCRYPTION_KEY}', false)"
   jpa:
     open-in-view: false
 

@@ -126,6 +126,7 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 | `DB_NAME` | O | 데이터베이스명 |
 | `DB_USERNAME` | O | 접속 계정 |
 | `DB_PASSWORD` | O | 접속 비밀번호 |
+| `DB_ENCRYPTION_KEY` | O | 암호화 컬럼용 키. 따옴표 없는 고엔트로피 Base64 문자열 권장 |
 | `SSH_HOST` | O | 터널을 붙일 서버 주소 |
 | `SSH_PORT` | X | SSH 포트 |
 | `SSH_USER` | O | SSH 계정 |
@@ -140,6 +141,11 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 | `STORAGE_BUCKET` | O | 원본 파일을 담을 버킷 |
 
 `.env`와 실제 접속 정보, pem 파일은 커밋하지 않습니다.
+
+`DB_ENCRYPTION_KEY`는 애플리케이션 시작 시 HikariCP가 생성하는 각 DB Connection의
+`app.encryption_key` 세션 설정으로 전달됩니다. 키가 바뀌면 기존 암호문을 복호화할 수
+없으므로 운영 중에는 동일한 값을 안전하게 보관하고 모든 애플리케이션 인스턴스에
+동일하게 설정해야 합니다.
 
 ---
 

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -38,6 +39,12 @@ class EntityMappingTest {
         val user = AppUser(
             tenant = tenant,
             email = "a@example.com",
+            name = "장민서",
+        ).also { em.persist(it) }
+
+        val userWithSameName = AppUser(
+            tenant = tenant,
+            email = "b@example.com",
             name = "장민서",
         ).also { em.persist(it) }
 
@@ -86,15 +93,33 @@ class EntityMappingTest {
         // 암호화 컬럼
         assertEquals("사업계획서_v1.pdf", reloadedVersion.originalFilename)
         assertEquals("장민서", em.find(AppUser::class.java, user.id).name)
+        assertEquals("장민서", em.find(AppUser::class.java, userWithSameName.id).name)
 
-        // 실제로 담기는 바이트열
-        val storedHex = em.createNativeQuery(
+        // 실제 컬럼에는 평문 UTF-8 바이트열이 아닌 암호문이 저장된다.
+        val storedNameHex = em.createNativeQuery(
             "SELECT encode(name, 'hex') FROM app_user WHERE id = :id",
         ).setParameter("id", user.id).singleResult as String
-        assertEquals(
-            "장민서".toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) },
-            storedHex,
-            "암호화 컬럼은 UTF-8 바이트열로 저장돼야 한다",
+        val samePlaintextNameHex = em.createNativeQuery(
+            "SELECT encode(name, 'hex') FROM app_user WHERE id = :id",
+        ).setParameter("id", userWithSameName.id).singleResult as String
+        val storedFilenameHex = em.createNativeQuery(
+            "SELECT encode(original_filename, 'hex') FROM document_version WHERE id = :id",
+        ).setParameter("id", version.id).singleResult as String
+
+        assertNotEquals(
+            "장민서".toUtf8Hex(),
+            storedNameHex,
+            "사용자 이름은 평문이 아닌 암호문으로 저장돼야 한다",
+        )
+        assertNotEquals(
+            "사업계획서_v1.pdf".toUtf8Hex(),
+            storedFilenameHex,
+            "원본 파일명은 평문이 아닌 암호문으로 저장돼야 한다",
+        )
+        assertNotEquals(
+            storedNameHex,
+            samePlaintextNameHex,
+            "같은 평문도 서로 다른 암호문으로 저장돼야 한다",
         )
 
         val reloadedScope = em.find(DocumentAccessScope::class.java, scope.id)
@@ -237,4 +262,7 @@ class EntityMappingTest {
         assertEquals(1, reloaded.eventSchemaVersion)
         assertNotNull(reloaded.nextAttemptAt)
     }
+
+    private fun String.toUtf8Hex(): String =
+        toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) }
 }
