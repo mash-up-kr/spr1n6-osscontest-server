@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class ProbeController {
 
+    @GetMapping("/test/auth")
+    fun auth(authContext: AuthContext): AuthContext = authContext
+
     @GetMapping("/test/param")
     fun param(@RequestParam @Min(1) limit: Int): Int = limit
 
