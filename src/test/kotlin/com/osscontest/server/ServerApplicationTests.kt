@@ -1,4 +1,4 @@
-package com.example.aidocs
+package com.osscontest.server
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest

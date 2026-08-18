@@ -1,4 +1,4 @@
-package com.example.aidocs
+package com.osscontest.server
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
