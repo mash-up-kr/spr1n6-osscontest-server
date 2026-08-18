@@ -1,5 +1,6 @@
 package com.osscontest.server.common.web
 
+import com.osscontest.server.common.trace.TraceId
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -8,10 +9,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.util.UUID
 
-/**
- * 요청마다 추적 ID 를 만들어 MDC 에 저장.
- * 에러 응답의 traceId 와 로그가 같은 값을 공유.
- */
+/** 요청마다 추적 ID 를 만들어 MDC 에 저장. */
 @Component
 class TraceIdFilter : OncePerRequestFilter() {
 
@@ -20,17 +18,11 @@ class TraceIdFilter : OncePerRequestFilter() {
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        MDC.put(TRACE_ID, UUID.randomUUID().toString().replace("-", "").take(16))
+        MDC.put(TraceId.KEY, UUID.randomUUID().toString().replace("-", "").take(16))
         try {
             filterChain.doFilter(request, response)
         } finally {
-            MDC.remove(TRACE_ID)
+            MDC.remove(TraceId.KEY)
         }
-    }
-
-    companion object {
-        const val TRACE_ID = "traceId"
-
-        fun currentTraceId(): String? = MDC.get(TRACE_ID)
     }
 }
