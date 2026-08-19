@@ -4,7 +4,6 @@ import com.osscontest.server.search.domain.SearchResultItem
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 
 /**
@@ -19,7 +18,6 @@ class SearchChunkRepository(
     private val jdbcTemplate: NamedParameterJdbcTemplate,
 ) {
 
-    @Transactional(readOnly = true)
     fun hybridSearch(
         tenantId: Long,
         userId: Long,
@@ -28,12 +26,6 @@ class SearchChunkRepository(
         topK: Int,
         contextWindow: Int,
     ): List<SearchResultItem> {
-        // WHERE tenant_id 필터가 ORDER BY <=> LIMIT 과 같이 있으면 옵티마이저가 HNSW 인덱스 대신
-        // Seq Scan을 택하는 걸 실측으로 확인했다 (design doc 4.2절). iterative_scan을 켜면 필터가
-        // 있어도 인덱스를 탄다. SET LOCAL이라 이 트랜잭션이 끝나면 자동으로 되돌아가 커넥션 풀로
-        // 세션이 재사용돼도 다음 쿼리로 값이 새지 않는다.
-        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
-
         val params = MapSqlParameterSource()
             .addValue("tenantId", tenantId)
             .addValue("tenantIdText", tenantId.toString())

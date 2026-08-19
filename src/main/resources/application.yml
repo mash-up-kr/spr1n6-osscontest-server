@@ -11,13 +11,11 @@ logging:
     # 로그에 요청의 traceId 를 붙여 추적성 유지
     level: "%5p [%X{traceId:-}]"
 
-# 검색 설계 문서 8/9장. embedding.base-url은 그룹2 임베딩 서버 주소로,
-# 로컬/dev 환경에 맞춰 application-{profile}.yml에서 덮어쓴다.
 search:
   default-top-k: 10
   max-top-k: 50
   max-context-window: 5
   embedding:
-    base-url: http://localhost:8000
+    base-url: http://localhost:8081
     connect-timeout-ms: 2000
     read-timeout-ms: 5000
