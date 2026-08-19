@@ -1,8 +1,8 @@
 package com.osscontest.server.search.application
 
-import com.osscontest.server.common.auth.AuthenticatedUser
-import com.osscontest.server.common.exception.ApiException
+import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
+import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.search.config.SearchProperties
 import com.osscontest.server.search.domain.SearchResultItem
 import com.osscontest.server.search.infrastructure.EmbeddingClient
@@ -21,10 +21,10 @@ class SearchService(
      * 공백 제거 -> 질의 임베딩 -> (tsquery 변환은 리포지토리 SQL 안에서 수행) -> RRF 검색.
      * Re-rank(Cross-Encoder)는 초기 구현에 넣지 않기로 한 항목이라 이 서비스엔 없다.
      */
-    fun search(user: AuthenticatedUser, request: SearchRequest): List<SearchResultItem> {
+    fun search(user: AuthContext, request: SearchRequest): List<SearchResultItem> {
         val query = request.query.trim()
         if (query.isEmpty()) {
-            throw ApiException(ErrorCode.INVALID_QUERY)
+            throw BusinessException(ErrorCode.INVALID_QUERY)
         }
 
         val topK = (request.topK ?: searchProperties.defaultTopK)

@@ -1,8 +1,8 @@
 package com.osscontest.server.search.application
 
-import com.osscontest.server.common.auth.AuthenticatedUser
-import com.osscontest.server.common.exception.ApiException
+import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
+import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.search.config.SearchProperties
 import com.osscontest.server.search.domain.SearchResultItem
 import com.osscontest.server.search.infrastructure.EmbeddingClient
@@ -25,7 +25,7 @@ import kotlin.test.assertFailsWith
  */
 class SearchServiceTest {
 
-    private val user = AuthenticatedUser(userId = 1L, tenantId = 10L)
+    private val user = AuthContext(userId = 1L, tenantId = 10L)
     private val properties = SearchProperties(defaultTopK = 10, maxTopK = 50, maxContextWindow = 5)
 
     private fun newService(
@@ -41,7 +41,7 @@ class SearchServiceTest {
     fun `공백만 있는 질의는 임베딩 호출 없이 거부한다`() {
         val (service, embeddingClient, _) = newService()
 
-        val exception = assertFailsWith<ApiException> {
+        val exception = assertFailsWith<BusinessException> {
             service.search(user, SearchRequest(query = "   "))
         }
 

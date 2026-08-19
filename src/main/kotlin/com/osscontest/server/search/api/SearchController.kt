@@ -1,7 +1,6 @@
 package com.osscontest.server.search.api
 
-import com.osscontest.server.common.auth.AuthenticatedUser
-import com.osscontest.server.common.auth.CurrentUser
+import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.search.application.SearchRequest
 import com.osscontest.server.search.application.SearchService
 import org.springframework.web.bind.annotation.PostMapping
@@ -18,7 +17,7 @@ class SearchController(
 
     @PostMapping
     fun search(
-        @CurrentUser user: AuthenticatedUser,
+        user: AuthContext,
         @RequestBody request: SearchRequest,
     ): SearchResponse = SearchResponse(items = searchService.search(user, request))
 }

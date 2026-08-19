@@ -1,7 +1,8 @@
 package com.osscontest.server.search.infrastructure
 
-import com.osscontest.server.common.exception.ApiException
+import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
+import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -18,6 +19,8 @@ class EmbeddingClient(
     private val embeddingRestClient: RestClient,
 ) {
 
+    private val log = LoggerFactory.getLogger(javaClass)
+
     fun embed(text: String): List<Float> {
         val response = try {
             embeddingRestClient.post()
@@ -27,12 +30,13 @@ class EmbeddingClient(
                 .retrieve()
                 .body<EmbedResponse>()
         } catch (ex: RestClientException) {
-            throw ApiException(ErrorCode.UPSTREAM_ERROR, cause = ex)
+            log.warn("임베딩 서버 호출 실패", ex)
+            throw BusinessException(ErrorCode.UPSTREAM_ERROR)
         }
 
         val vector = response?.vectors?.firstOrNull()
         if (vector.isNullOrEmpty()) {
-            throw ApiException(ErrorCode.UPSTREAM_ERROR, message = "임베딩 응답이 비어 있습니다.")
+            throw BusinessException(ErrorCode.UPSTREAM_ERROR, "임베딩 응답이 비어 있습니다.")
         }
         return vector
     }
