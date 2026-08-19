@@ -62,6 +62,10 @@ class DocumentPermissionService(
     ) {
         val document = documentAccessChecker.requireAdministrable(authContext, documentId)
 
+        if (principalType == PrincipalType.USER && principalId == document.ownerPrincipalId) {
+            throw BusinessException(ErrorCode.OWNER_PERMISSION_NOT_REVOCABLE)
+        }
+
         val scope = documentAccessScopeRepository.findByDocumentIdAndPrincipalTypeAndPrincipalId(
             documentId = document.id!!,
             principalType = principalType,

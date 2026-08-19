@@ -18,8 +18,12 @@ import com.osscontest.server.document.api.ListDocumentVersionsRequest
 import com.osscontest.server.document.api.ListDocumentsRequest
 import com.osscontest.server.document.api.SearchableVersionResponse
 import com.osscontest.server.document.domain.Document
+import com.osscontest.server.document.domain.DocumentAccessScope
 import com.osscontest.server.document.domain.DocumentVersion
+import com.osscontest.server.document.domain.Permission
+import com.osscontest.server.document.domain.PrincipalType
 import com.osscontest.server.document.domain.UploadFileType
+import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
 import com.osscontest.server.indexing.domain.IndexingJob
@@ -52,6 +56,7 @@ class DocumentService(
     private val objectStorage: ObjectStorage,
     private val entityManager: EntityManager,
     private val documentAccessChecker: DocumentAccessChecker,
+    private val documentAccessScopeRepository: DocumentAccessScopeRepository,
 ) {
 
     @Transactional
@@ -68,6 +73,7 @@ class DocumentService(
             documentRepository.save(it)
         }
 
+        grantInitialPermissions(authContext, document)
         saveVersion(authContext, document, FIRST_VERSION_NO, file, fileType)
 
         return DocumentUploadResponse(
@@ -326,6 +332,31 @@ class DocumentService(
 
     private fun baseName(file: MultipartFile): String =
         file.originalFilename?.substringBeforeLast('.').orEmpty().ifBlank { "제목 없음" }
+
+    /**
+     * 소유자에게 ADMIN, 소속 테넌트에 READ 를 부여한다.
+     * 문서 접근과 검색이 모두 document_access_scope 만 보므로 생성 시점에 넣는다.
+     */
+    private fun grantInitialPermissions(authContext: AuthContext, document: Document) {
+        documentAccessScopeRepository.saveAll(
+            listOf(
+                DocumentAccessScope(
+                    document = document,
+                    principalType = PrincipalType.USER,
+                    principalId = authContext.userId.toString(),
+                    permission = Permission.ADMIN,
+                    grantedByPrincipalId = authContext.userId.toString(),
+                ),
+                DocumentAccessScope(
+                    document = document,
+                    principalType = PrincipalType.TENANT,
+                    principalId = authContext.tenantId.toString(),
+                    permission = Permission.READ,
+                    grantedByPrincipalId = authContext.userId.toString(),
+                ),
+            ),
+        )
+    }
 
     private fun findReadableDocument(authContext: AuthContext, documentId: Long): Document =
         documentAccessChecker.requireReadable(authContext, documentId)
