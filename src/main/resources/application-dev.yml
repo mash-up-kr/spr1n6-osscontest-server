@@ -12,3 +12,10 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+
+storage:
+  endpoint: ${STORAGE_ENDPOINT}
+  region: ${STORAGE_REGION}
+  access-key: ${STORAGE_ACCESS_KEY}
+  secret-key: ${STORAGE_SECRET_KEY}
+  bucket: ${STORAGE_BUCKET}

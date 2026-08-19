@@ -37,12 +37,16 @@
 
 ### local
 
-Docker로 PostgreSQL 17.8 컨테이너를 띄우고 애플리케이션이 여기에 접속합니다. 과제 환경과 동일한 버전으로 고정되어 있습니다.
+Docker로 PostgreSQL 17.8과 MinIO 컨테이너를 띄우고 애플리케이션이 여기에 접속합니다. 과제 환경과 동일한 버전으로 고정되어 있습니다.
 
 ```bash
 docker compose up -d
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
+
+원본 파일은 MinIO에 저장합니다. 컨테이너가 뜰 때 `aidocs-documents` 버킷이 함께 만들어지므로 별도 준비가 필요 없고, `http://localhost:9001` 콘솔에서 확인할 수 있습니다.
+
+DB와 MinIO에 직접 붙어볼 때 쓰는 계정과 포트는 `docker-compose.yml`에 있습니다.
 
 ### dev
 
@@ -82,6 +86,19 @@ pem 파일은 프로젝트 폴더 밖에 두고 `chmod 600`으로 권한을 맞�
 
 로컬 포트 기본값은 `15432`입니다. `local` 프로파일의 Docker PostgreSQL이 5432를 쓰기 때문에, 터널까지 5432로 열면 컨테이너가 떠 있을 때 터널이 열리지 않거나 의도한 것과 다른 DB에 붙게 됩니다.
 
+dev 환경의 컨테이너는 별도 파일로 띄웁니다.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+| 파일 | 용도 | 담긴 것 |
+|---|---|---|
+| `docker-compose.yml` | 로컬 개발 | PostgreSQL, MinIO |
+| `docker-compose.dev.yml` | dev 환경 | MinIO |
+
+dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는 앱과 같은 `.env`에서 읽고, 값이 없으면 컨테이너가 뜨지 않습니다. 앱과 릴레이, 카프카, 워커는 각 이미지가 준비되면 이 파일에 추가합니다.
+
 ---
 
 ## 프로파일 구성
@@ -116,6 +133,11 @@ pem 파일은 프로젝트 폴더 밖에 두고 `chmod 600`으로 권한을 맞�
 | `TUNNEL_LOCAL_PORT` | X | 로컬에서 열 포트 (기본 15432) |
 | `TUNNEL_REMOTE_HOST` | X | 서버에서 본 DB 주소 (기본 127.0.0.1) |
 | `TUNNEL_REMOTE_PORT` | X | 서버에서 본 DB 포트 (기본 5432) |
+| `STORAGE_ENDPOINT` | O | 오브젝트 스토리지 주소 |
+| `STORAGE_REGION` | O | 리전. MinIO는 무시하지만 SDK가 서명에 쓰므로 값이 있어야 한다 |
+| `STORAGE_ACCESS_KEY` | O | 액세스 키 |
+| `STORAGE_SECRET_KEY` | O | 시크릿 키 |
+| `STORAGE_BUCKET` | O | 원본 파일을 담을 버킷 |
 
 `.env`와 실제 접속 정보, pem 파일은 커밋하지 않습니다.
 

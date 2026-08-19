@@ -26,10 +26,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin")
-    // Boot 4는 자동 설정이 모듈별로 분리됐다. flyway-core만 넣으면 Flyway가 아예 실행되지 않는다.
     implementation("org.springframework.boot:spring-boot-starter-flyway")
-    // Flyway 10부터 DB별 지원도 별도 모듈이다.
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+    implementation("software.amazon.awssdk:s3") {
+        // 동기 클라이언트만 쓰므로 비동기용 Netty 는 제거
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
