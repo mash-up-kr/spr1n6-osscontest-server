@@ -195,7 +195,7 @@ class DocumentApiTest {
     }
 
     @Test
-    fun `같은 테넌트의 문서 목록과 상세를 조회한다`() {
+    fun `소유자가 문서 목록과 상세를 조회한다`() {
         val documentId = createDocument("목록 본문".toByteArray())
 
         mockMvc.get("/api/v1/documents") {
@@ -215,9 +215,8 @@ class DocumentApiTest {
         mockMvc.get("/api/v1/documents/$documentId") {
             header(USER_ID_HEADER, sameTenantUser.id.toString())
         }.andExpect {
-            status { isOk() }
-            jsonPath("$.id") { value(documentId) }
-            jsonPath("$.latestUploadVersionNo") { value(1) }
+            status { isForbidden() }
+            jsonPath("$.code") { value("FORBIDDEN") }
         }
     }
 

@@ -16,10 +16,31 @@ interface DocumentRepository : JpaRepository<Document, Long> {
         WHERE d.tenant.id = :tenantId
           AND d.deletedAt IS NULL
           AND (:cursorId IS NULL OR d.id < :cursorId)
+          AND (
+              d.ownerPrincipalId = :userPrincipalId
+              OR EXISTS (
+                  SELECT 1
+                  FROM DocumentAccessScope s
+                  WHERE s.document = d
+                    AND s.tenantId = :tenantId
+                    AND (
+                        (s.principalType = com.osscontest.server.document.domain.PrincipalType.USER
+                            AND s.principalId = :userPrincipalId)
+                        OR (s.principalType = com.osscontest.server.document.domain.PrincipalType.TENANT
+                            AND s.principalId = :tenantPrincipalId)
+                    )
+              )
+          )
         ORDER BY d.id DESC
         """,
     )
-    fun findActivePage(tenantId: Long, cursorId: Long?, pageable: Pageable): List<Document>
+    fun findActivePage(
+        tenantId: Long,
+        cursorId: Long?,
+        tenantPrincipalId: String,
+        userPrincipalId: String,
+        pageable: Pageable,
+    ): List<Document>
 
     @Query(
         """
@@ -29,6 +50,21 @@ interface DocumentRepository : JpaRepository<Document, Long> {
           AND d.deletedAt IS NULL
           AND (:cursorId IS NULL OR d.id < :cursorId)
           AND LOWER(d.title) LIKE :titlePattern ESCAPE '\'
+          AND (
+              d.ownerPrincipalId = :userPrincipalId
+              OR EXISTS (
+                  SELECT 1
+                  FROM DocumentAccessScope s
+                  WHERE s.document = d
+                    AND s.tenantId = :tenantId
+                    AND (
+                        (s.principalType = com.osscontest.server.document.domain.PrincipalType.USER
+                            AND s.principalId = :userPrincipalId)
+                        OR (s.principalType = com.osscontest.server.document.domain.PrincipalType.TENANT
+                            AND s.principalId = :tenantPrincipalId)
+                    )
+              )
+          )
         ORDER BY d.id DESC
         """,
     )
@@ -36,6 +72,8 @@ interface DocumentRepository : JpaRepository<Document, Long> {
         tenantId: Long,
         cursorId: Long?,
         titlePattern: String,
+        tenantPrincipalId: String,
+        userPrincipalId: String,
         pageable: Pageable,
     ): List<Document>
 

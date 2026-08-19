@@ -113,7 +113,7 @@ class DocumentService(
         var nextCursor: String? = null
 
         while (items.size <= request.limit) {
-            val documents = findDocumentPage(authContext.tenantId, cursorId, request.q)
+            val documents = findDocumentPage(authContext, cursorId, request.q)
             if (documents.isEmpty()) break
 
             val summaryContext = summaryContext(documents)
@@ -328,20 +328,34 @@ class DocumentService(
         file.originalFilename?.substringBeforeLast('.').orEmpty().ifBlank { "제목 없음" }
 
     private fun findReadableDocument(authContext: AuthContext, documentId: Long): Document =
-        documentRepository.findActive(documentId, authContext.tenantId)
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        documentAccessChecker.requireReadable(authContext, documentId)
 
     private fun findWritableDocumentForUpdate(authContext: AuthContext, documentId: Long): Document =
         documentAccessChecker.requireWritableForUpdate(authContext, documentId)
 
-    private fun findDocumentPage(tenantId: Long, cursorId: Long?, q: String?): List<Document> {
+    private fun findDocumentPage(authContext: AuthContext, cursorId: Long?, q: String?): List<Document> {
         val pageable = PageRequest.of(0, PAGE_SCAN_SIZE)
         val keyword = q?.takeIf { it.isNotBlank() }?.lowercase()
+        val tenantPrincipalId = authContext.tenantId.toString()
+        val userPrincipalId = authContext.userId.toString()
 
         return if (keyword == null) {
-            documentRepository.findActivePage(tenantId, cursorId, pageable)
+            documentRepository.findActivePage(
+                tenantId = authContext.tenantId,
+                cursorId = cursorId,
+                tenantPrincipalId = tenantPrincipalId,
+                userPrincipalId = userPrincipalId,
+                pageable = pageable,
+            )
         } else {
-            documentRepository.findActivePageByTitle(tenantId, cursorId, "%${keyword.escapeLike()}%", pageable)
+            documentRepository.findActivePageByTitle(
+                tenantId = authContext.tenantId,
+                cursorId = cursorId,
+                titlePattern = "%${keyword.escapeLike()}%",
+                tenantPrincipalId = tenantPrincipalId,
+                userPrincipalId = userPrincipalId,
+                pageable = pageable,
+            )
         }
     }
 
