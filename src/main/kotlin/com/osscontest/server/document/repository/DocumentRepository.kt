@@ -44,6 +44,11 @@ interface DocumentRepository : JpaRepository<Document, Long> {
 
     /** 같은 문서에 대한 동시 버전 업로드가 순차적으로 번호를 받도록 문서 행을 잠근다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM Document d WHERE d.id = :id AND d.tenant.id = :tenantId AND d.deletedAt IS NULL")
+    fun findActiveForUpdate(id: Long, tenantId: Long): Document?
+
+    /** 같은 문서에 대한 동시 버전 업로드가 순차적으로 번호를 받도록 문서 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         """
         SELECT d
