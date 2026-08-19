@@ -19,6 +19,9 @@ enum class ErrorCode(val status: HttpStatus, val message: String) {
     EMPTY_FILE(HttpStatus.BAD_REQUEST, "빈 파일은 업로드할 수 없습니다."),
 
     /** 인덱싱 */
+    SEARCHABLE_VERSION_NOT_READY(HttpStatus.CONFLICT, "인덱싱이 완료된 버전만 검색 대상으로 지정할 수 있습니다."),
+    INDEXING_RETRY_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 실패 상태인 인덱싱 작업만 재시도할 수 있습니다."),
+    INDEXING_RETRY_ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 대기 중인 재인덱싱 요청이 있습니다."),
 
     /** 검색 */
     INVALID_QUERY(HttpStatus.BAD_REQUEST, "검색 질의문이 비어 있습니다."),

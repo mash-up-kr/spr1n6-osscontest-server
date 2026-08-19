@@ -30,6 +30,10 @@ data class DocumentTitleResponse(
     val title: String,
 )
 
+data class SearchableVersionResponse(
+    val searchableVersionNo: Long,
+)
+
 data class DocumentVersionSummary(
     val versionNo: Long,
     val originalFilename: String,
@@ -50,4 +54,19 @@ data class DocumentVersionDetailResponse(
     val searchable: Boolean,
     val sourceMetadata: Map<String, Any?>?,
     val extractedMetadata: Map<String, Any?>?,
+)
+
+data class IndexingStatusResponse(
+    val versionNo: Long,
+    val status: IndexingStatus,
+    val attemptCount: Int,
+    val chunkCount: Int?,
+    val startedAt: Instant?,
+    val completedAt: Instant?,
+    val lastErrorMessage: String?,
+)
+
+data class IndexingRetryResponse(
+    val versionNo: Long,
+    val indexing: IndexingProgress,
 )

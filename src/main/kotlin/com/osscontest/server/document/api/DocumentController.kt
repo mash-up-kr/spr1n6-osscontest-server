@@ -9,11 +9,13 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestPart
@@ -60,6 +62,23 @@ class DocumentController(
     ): DocumentTitleResponse =
         documentService.updateTitle(authContext, documentId, request.title)
 
+    @DeleteMapping("/{documentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteDocument(
+        authContext: AuthContext,
+        @PathVariable documentId: Long,
+    ) {
+        documentService.deleteDocument(authContext, documentId)
+    }
+
+    @PutMapping("/{documentId}/searchable-version")
+    fun updateSearchableVersion(
+        authContext: AuthContext,
+        @PathVariable documentId: Long,
+        @Valid @RequestBody request: UpdateSearchableVersionRequest,
+    ): SearchableVersionResponse =
+        documentService.updateSearchableVersion(authContext, documentId, request.versionNo)
+
     @PostMapping("/{documentId}/versions", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.ACCEPTED)
     fun addVersion(
@@ -104,4 +123,21 @@ class DocumentController(
             )
             .body(InputStreamResource(file.content))
     }
+
+    @GetMapping("/{documentId}/versions/{versionNo}/indexing")
+    fun getIndexingStatus(
+        authContext: AuthContext,
+        @PathVariable documentId: Long,
+        @PathVariable versionNo: Long,
+    ): IndexingStatusResponse =
+        documentService.getIndexingStatus(authContext, documentId, versionNo)
+
+    @PostMapping("/{documentId}/versions/{versionNo}/indexing/retry")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun retryIndexing(
+        authContext: AuthContext,
+        @PathVariable documentId: Long,
+        @PathVariable versionNo: Long,
+    ): IndexingRetryResponse =
+        documentService.retryIndexing(authContext, documentId, versionNo)
 }

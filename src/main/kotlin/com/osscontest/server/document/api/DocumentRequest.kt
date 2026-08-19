@@ -16,6 +16,11 @@ data class UpdateDocumentTitleRequest(
     val title: String,
 )
 
+data class UpdateSearchableVersionRequest(
+    @field:Min(value = 1, message = "versionNo는 1 이상이어야 합니다.")
+    val versionNo: Long,
+)
+
 data class ListDocumentsRequest(
     @field:Min(value = 1, message = "limit은 1 이상이어야 합니다.")
     @field:Max(value = 100, message = "limit은 100 이하여야 합니다.")
