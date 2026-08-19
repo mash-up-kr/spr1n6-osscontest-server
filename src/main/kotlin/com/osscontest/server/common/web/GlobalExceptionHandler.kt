@@ -2,6 +2,7 @@ package com.osscontest.server.common.web
 
 import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
+import com.osscontest.server.common.trace.TraceId
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -88,5 +89,5 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             )
 
     private fun errorResponse(code: String, message: String) =
-        ErrorResponse(code = code, message = message, traceId = TraceIdFilter.currentTraceId())
+        ErrorResponse(code = code, message = message, traceId = TraceId.current())
 }

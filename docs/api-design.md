@@ -22,8 +22,10 @@
 ## 2. 결정 사항
 
 - **업로드는 `multipart/form-data`로 서버를 거칩니다.** presigned URL 2단계는 보류했습니다.
-- **파일은 20MB 까지, PDF · DOCX · Markdown 만 받습니다.** 크기를 넘으면 `413`,
+- **파일은 20MB 까지, PDF · DOCX · Markdown · HWP · TXT 만 받습니다.** 크기를 넘으면 `413`,
   형식이 다르면 `415` 입니다.
+- **허용 형식은 확장자로 판정합니다.** HWP 는 표준 MIME 이 없어 클라이언트가 보내는 값이
+  일정하지 않습니다. `mime_type` 에는 확장자로 정한 값을 저장합니다.
 - **재인덱싱 Outbox 행은 API 서버가 직접 INSERT 합니다.** 새 `source_event_id`로 발행하고
   `retry_of_event_id`에 원본 이벤트를 넣습니다.
 - **재인덱싱은 임베딩이 실패한 버전에만 허용합니다.** 그 외에는 `409`입니다.
@@ -121,11 +123,15 @@ Content-Type: multipart/form-data
 | `file` | file | O | 원본 파일 |
 | `title` | string | X | 없으면 파일명에서 확장자를 뗀 값 |
 
-`file`은 20MB 이하이며 MIME 이 다음 셋 중 하나여야 합니다.
+`file`은 20MB 이하이며 확장자가 다음 중 하나여야 합니다. 저장되는 `mimeType` 은 확장자로 정합니다.
 
-- `application/pdf`
-- `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
-- `text/markdown`
+| 확장자 | `mimeType` |
+|---|---|
+| `.pdf` | `application/pdf` |
+| `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| `.md`, `.markdown` | `text/markdown` |
+| `.hwp` | `application/x-hwp` |
+| `.txt` | `text/plain` |
 
 ```json
 202 Accepted
