@@ -4,6 +4,7 @@ import com.osscontest.server.search.domain.SearchResultItem
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 
 /**
@@ -18,6 +19,7 @@ class SearchChunkRepository(
     private val jdbcTemplate: NamedParameterJdbcTemplate,
 ) {
 
+    @Transactional(readOnly = true)
     fun hybridSearch(
         tenantId: Long,
         userId: Long,
@@ -25,7 +27,11 @@ class SearchChunkRepository(
         queryEmbedding: List<Float>,
         topK: Int,
         contextWindow: Int,
+        efSearch: Int,
     ): List<SearchResultItem> {
+
+        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.ef_search = $efSearch")
+
         val params = MapSqlParameterSource()
             .addValue("tenantId", tenantId)
             .addValue("tenantIdText", tenantId.toString())

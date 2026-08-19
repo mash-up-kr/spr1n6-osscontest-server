@@ -59,6 +59,7 @@ class SearchChunkRepositoryTest {
             queryEmbedding = dummyEmbedding,
             topK = 10,
             contextWindow = 1,
+            efSearch = 100,
         )
 
         val hit = results.find { it.content.contains("위약금") }
@@ -91,6 +92,7 @@ class SearchChunkRepositoryTest {
             queryEmbedding = dummyEmbedding,
             topK = 10,
             contextWindow = 0,
+            efSearch = 100,
         )
 
         val hit = results.find { it.content.contains("위약금") }
@@ -121,6 +123,7 @@ class SearchChunkRepositoryTest {
             queryEmbedding = dummyEmbedding,
             topK = 10,
             contextWindow = 0,
+            efSearch = 100,
         )
 
         assertFalse(results.any { it.content.contains("비공개") }, "권한 없는 문서 청크가 새어 나가면 안 된다")
@@ -149,6 +152,7 @@ class SearchChunkRepositoryTest {
             queryEmbedding = dummyEmbedding,
             topK = 10,
             contextWindow = 0,
+            efSearch = 100,
         )
 
         assertFalse(results.any { it.content.contains("B테넌트") }, "다른 테넌트 청크가 새어 나가면 안 된다")
