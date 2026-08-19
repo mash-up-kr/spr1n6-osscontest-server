@@ -51,6 +51,7 @@ class DocumentService(
     private val tenantRepository: TenantRepository,
     private val objectStorage: ObjectStorage,
     private val entityManager: EntityManager,
+    private val documentAccessChecker: DocumentAccessChecker,
 ) {
 
     @Transactional
@@ -82,13 +83,7 @@ class DocumentService(
         val fileType = resolveFileType(file)
         passTraceIdToTrigger()
 
-        val document = documentRepository.findActiveWritableForUpdate(
-            id = documentId,
-            tenantId = authContext.tenantId,
-            tenantPrincipalId = authContext.tenantId.toString(),
-            userPrincipalId = authContext.userId.toString(),
-        )
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        val document = findWritableDocumentForUpdate(authContext, documentId)
 
         val versionNo = document.latestUploadVersionNo + 1
         document.latestUploadVersionNo = versionNo
@@ -337,13 +332,7 @@ class DocumentService(
             ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
 
     private fun findWritableDocumentForUpdate(authContext: AuthContext, documentId: Long): Document =
-        documentRepository.findActiveWritableForUpdate(
-            id = documentId,
-            tenantId = authContext.tenantId,
-            tenantPrincipalId = authContext.tenantId.toString(),
-            userPrincipalId = authContext.userId.toString(),
-        )
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        documentAccessChecker.requireWritableForUpdate(authContext, documentId)
 
     private fun findDocumentPage(tenantId: Long, cursorId: Long?, q: String?): List<Document> {
         val pageable = PageRequest.of(0, PAGE_SCAN_SIZE)

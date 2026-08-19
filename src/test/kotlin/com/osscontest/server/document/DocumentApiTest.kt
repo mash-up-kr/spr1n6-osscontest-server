@@ -337,8 +337,8 @@ class DocumentApiTest {
             contentType = MediaType.APPLICATION_JSON
             content = """{"title":"새 제목"}"""
         }.andExpect {
-            status { isNotFound() }
-            jsonPath("$.code") { value("DOCUMENT_NOT_FOUND") }
+            status { isForbidden() }
+            jsonPath("$.code") { value("FORBIDDEN") }
         }
     }
 
