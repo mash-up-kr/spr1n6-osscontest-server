@@ -18,3 +18,12 @@ logging:
 server:
   tomcat:
     max-swallow-size: -1
+    
+search:
+  default-top-k: 10
+  max-top-k: 50
+  max-context-window: 5
+  embedding:
+    base-url: http://localhost:8081
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000

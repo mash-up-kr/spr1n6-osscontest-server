@@ -412,7 +412,8 @@ Content-Type: application/json
 {
   "query": "3개월 이내 해지 시 위약금",
   "topK": 10,
-  "contextWindow": 1
+  "contextWindow": 1,
+  "efSearch": 100
 }
 ```
 
@@ -421,6 +422,7 @@ Content-Type: application/json
 | `query` | string | O | 검색 질의문 |
 | `topK` | integer | X | 기본 10, 최대 50 |
 | `contextWindow` | integer | X | 매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함), 최대 5 |
+| `efSearch` | integer | X | HNSW 검색 시 탐색 폭. 기본 100. 클수록 정확도↑ 지연↑ |
 
 ```json
 200 OK
