@@ -13,9 +13,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.multipart
+import org.springframework.test.web.servlet.patch
 import org.springframework.transaction.annotation.Transactional
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
@@ -187,9 +190,158 @@ class DocumentApiTest {
         }
     }
 
-    private fun createDocument(content: ByteArray): Long {
+    @Test
+    fun `같은 테넌트의 문서 목록과 상세를 조회한다`() {
+        val documentId = createDocument("목록 본문".toByteArray())
+
+        mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].id") { value(documentId) }
+            jsonPath("$.items[0].title") { value("a") }
+            jsonPath("$.items[0].latestVersionIndexingStatus") { value("PENDING") }
+            jsonPath("$.nextCursor") { value(null) }
+        }
+
+        val sameTenantUser = AppUser(tenant = tenant, email = "b@example.com", name = "김민서")
+            .also { em.persist(it) }
+        em.flush()
+
+        mockMvc.get("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, sameTenantUser.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(documentId) }
+            jsonPath("$.latestUploadVersionNo") { value(1) }
+        }
+    }
+
+    @Test
+    fun `문서 목록 limit 이 범위를 벗어나면 400 이다`() {
+        mockMvc.get("/api/v1/documents") {
+            param("limit", "101")
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+            jsonPath("$.message") { value(org.hamcrest.Matchers.containsString("limit은 100 이하여야 합니다.")) }
+        }
+    }
+
+    @Test
+    fun `문서 목록 제목 검색은 와일드카드를 글자로 취급한다`() {
+        val literalDocumentId = createDocument("literal".toByteArray(), title = "100% 달성")
+        createDocument("wildcard".toByteArray(), title = "100점 달성")
+
+        mockMvc.get("/api/v1/documents") {
+            param("q", "100%")
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(1) }
+            jsonPath("$.items[0].id") { value(literalDocumentId) }
+            jsonPath("$.items[0].title") { value("100% 달성") }
+        }
+    }
+
+    @Test
+    fun `버전 목록과 상세를 조회한다`() {
+        val documentId = createDocument("버전1".toByteArray())
+
+        mockMvc.multipart("/api/v1/documents/$documentId/versions") {
+            file(MockMultipartFile("file", "b.txt", "text/plain", "버전2".toByteArray()))
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect { status { isAccepted() } }
+        uploadedKeys += latestVersion()["source_object_key"] as String
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].versionNo") { value(2) }
+            jsonPath("$.items[0].originalFilename") { value("b.txt") }
+            jsonPath("$.items[0].indexing.status") { value("PENDING") }
+            jsonPath("$.items[1].versionNo") { value(1) }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/2") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.versionNo") { value(2) }
+            jsonPath("$.mimeType") { value("text/plain") }
+            jsonPath("$.sourceMetadata") { value(null) }
+            jsonPath("$.extractedMetadata") { value(null) }
+        }
+    }
+
+    @Test
+    fun `버전 목록 limit 이 범위를 벗어나면 400 이다`() {
+        val documentId = createDocument("버전".toByteArray())
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            param("limit", "0")
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+            jsonPath("$.message") { value(org.hamcrest.Matchers.containsString("limit은 1 이상이어야 합니다.")) }
+        }
+    }
+
+    @Test
+    fun `원본 파일을 다운로드한다`() {
+        val content = "다운로드 본문".toByteArray()
+        val documentId = createDocument(content)
+
+        val response = mockMvc.get("/api/v1/documents/$documentId/versions/1/content") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            header { string("Content-Type", "application/pdf") }
+            header { string(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("filename*=")) }
+        }.andReturn().response
+
+        assertContentEquals(content, response.contentAsByteArray)
+    }
+
+    @Test
+    fun `소유자는 제목을 변경한다`() {
+        val documentId = createDocument("제목 변경".toByteArray())
+
+        mockMvc.patch("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, user.id.toString())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"새 제목"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(documentId) }
+            jsonPath("$.title") { value("새 제목") }
+        }
+    }
+
+    @Test
+    fun `소유자가 아니면 제목을 변경할 수 없다`() {
+        val documentId = createDocument("제목 변경".toByteArray())
+        val sameTenantUser = AppUser(tenant = tenant, email = "c@example.com", name = "박민서")
+            .also { em.persist(it) }
+        em.flush()
+
+        mockMvc.patch("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, sameTenantUser.id.toString())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"새 제목"}"""
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("DOCUMENT_NOT_FOUND") }
+        }
+    }
+
+    private fun createDocument(content: ByteArray, title: String? = null): Long {
         mockMvc.multipart("/api/v1/documents") {
             file(MockMultipartFile("file", "a.pdf", "application/pdf", content))
+            title?.let { param("title", it) }
             header(USER_ID_HEADER, user.id.toString())
         }.andExpect { status { isAccepted() } }
 
