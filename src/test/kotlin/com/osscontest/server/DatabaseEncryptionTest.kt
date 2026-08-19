@@ -70,6 +70,38 @@ class DatabaseEncryptionTest {
         }
     }
 
+    @Test
+    fun `ARIA 256으로 암호화하고 기존 AES 256 암호문도 복호화한다`() {
+        dataSource.connection.use { connection ->
+            connection.prepareStatement(
+                """
+                WITH plain AS (
+                    SELECT convert_to(?::text, 'UTF8') AS value
+                )
+                SELECT
+                    pg_get_functiondef('app_encrypt(bytea)'::regprocedure),
+                    app_decrypt(app_encrypt(value)) = value,
+                    app_decrypt(
+                        pgp_sym_encrypt_bytea(
+                            value,
+                            current_setting('app.encryption_key'),
+                            'cipher-algo=aes256'
+                        )
+                    ) = value
+                FROM plain
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setString(1, "ARIA 암복호화 확인")
+                statement.executeQuery().use { resultSet ->
+                    assertTrue(resultSet.next())
+                    assertTrue(resultSet.getString(1).contains("cipher-algo=aria256"))
+                    assertTrue(resultSet.getBoolean(2))
+                    assertTrue(resultSet.getBoolean(3))
+                }
+            }
+        }
+    }
+
     private fun Connection.backendPid(): Int =
         createStatement().use { statement ->
             statement.executeQuery("SELECT pg_backend_pid()").use { resultSet ->

@@ -147,6 +147,12 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 없으므로 운영 중에는 동일한 값을 안전하게 보관하고 모든 애플리케이션 인스턴스에
 동일하게 설정해야 합니다.
 
+`app_user.name`과 `document_version.original_filename`은 Tmax OpenCrypto 1.0의
+ARIA-256으로 암호화합니다. DB에는 ARIA를 지원하는 `opencrypto` 확장이 사전에 설치되어
+있어야 합니다. 암호문에 알고리즘 정보가 포함되므로 `app_decrypt`는 전환 전에 저장된
+AES-256 암호문도 계속 복호화할 수 있으며, 전환 후 새로 저장하거나 갱신한 값부터
+ARIA-256 암호문으로 저장됩니다.
+
 ---
 
 ## 협업 규칙
