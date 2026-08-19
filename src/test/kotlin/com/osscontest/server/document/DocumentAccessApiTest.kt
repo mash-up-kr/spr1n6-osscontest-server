@@ -16,10 +16,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.transaction.annotation.Transactional
 
-/** 부여된 권한에 따라 문서 쓰기가 허용되는지 확인한다. */
+/** 부여된 권한에 따라 문서 읽기와 쓰기가 허용되는지 확인한다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -109,6 +110,71 @@ class DocumentAccessApiTest {
             jsonPath("$.code") { value("DOCUMENT_NOT_FOUND") }
         }
     }
+
+    @Test
+    fun `소유자는 문서를 조회한다`() {
+        getDocument(owner).andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(document.id!!) }
+        }
+    }
+
+    @Test
+    fun `READ 권한을 받으면 문서를 조회한다`() {
+        grantToUser(member, Permission.READ)
+
+        getDocument(member).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `테넌트에 부여된 READ 권한으로도 문서를 조회한다`() {
+        grantToTenant(Permission.READ)
+
+        getDocument(member).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `권한이 없으면 같은 테넌트여도 조회하지 못한다`() {
+        getDocument(member).andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("FORBIDDEN") }
+        }
+    }
+
+    @Test
+    fun `권한이 없으면 버전 목록도 보지 못한다`() {
+        mockMvc.get("/api/v1/documents/${document.id}/versions") {
+            header(USER_ID_HEADER, member.id.toString())
+        }.andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `목록에는 읽을 수 있는 문서만 나온다`() {
+        Document(tenant = tenant, ownerPrincipalId = owner.id.toString(), title = "비공개")
+            .also { em.persist(it) }
+        em.flush()
+        grantToUser(member, Permission.READ)
+
+        mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, member.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(1) }
+            jsonPath("$.items[0].id") { value(document.id!!) }
+        }
+
+        mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, owner.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(2) }
+        }
+    }
+
+    private fun getDocument(actor: AppUser) =
+        mockMvc.get("/api/v1/documents/${document.id}") {
+            header(USER_ID_HEADER, actor.id.toString())
+        }
 
     private fun updateTitle(actor: AppUser) =
         mockMvc.patch("/api/v1/documents/${document.id}") {
