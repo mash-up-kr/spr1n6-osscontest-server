@@ -17,6 +17,8 @@ enum class ErrorCode(val status: HttpStatus, val message: String) {
     /** 인덱싱 */
 
     /** 검색 */
+    INVALID_QUERY(HttpStatus.BAD_REQUEST, "검색 질의문이 비어 있습니다."),
+    UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "검색어 처리 중 오류가 발생했습니다."),
 
     /** 권한 */
     ;

@@ -10,3 +10,12 @@ logging:
   pattern:
     # 로그에 요청의 traceId 를 붙여 추적성 유지
     level: "%5p [%X{traceId:-}]"
+
+search:
+  default-top-k: 10
+  max-top-k: 50
+  max-context-window: 5
+  embedding:
+    base-url: http://localhost:8081
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
