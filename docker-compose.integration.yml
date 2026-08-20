@@ -118,32 +118,37 @@ services:
       start_period: 15s
 
   # ---------------------------------------------------------------------------
-  # 아래는 각 저장소가 Docker Hub 에 이미지를 올리면 주석을 푼다.
+  # 릴레이와 워커는 각 저장소가 Docker Hub 에 이미지를 올리면 주석을 푼다.
   # 이미지 이름과 태그는 .env.integration 에서 받는다.
   # ---------------------------------------------------------------------------
 
-  # server:
-  #   image: ${SERVER_IMAGE}
-  #   container_name: aidocs-it-server
-  #   restart: unless-stopped
-  #   depends_on:
-  #     db-tunnel: { condition: service_healthy }
-  #     minio: { condition: service_healthy }
-  #   environment:
-  #     SPRING_PROFILES_ACTIVE: dev
-  #     DB_HOST: db-tunnel
-  #     DB_PORT: 5432
-  #     DB_NAME: ${DB_NAME}
-  #     DB_USERNAME: ${DB_USERNAME}
-  #     DB_PASSWORD: ${DB_PASSWORD}
-  #     DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
-  #     STORAGE_ENDPOINT: http://minio:9000
-  #     STORAGE_REGION: ${STORAGE_REGION}
-  #     STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
-  #     STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-  #     STORAGE_BUCKET: ${STORAGE_BUCKET}
-  #   ports:
-  #     - "${SERVER_HOST_PORT:-8080}:8080"
+  server:
+    build: .
+    container_name: aidocs-it-server
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: db-tunnel
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_REGION: ${STORAGE_REGION}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+    ports:
+      - "${SERVER_HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
   # relay:
   #   image: ${RELAY_IMAGE}
