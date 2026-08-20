@@ -118,7 +118,7 @@ services:
       start_period: 15s
 
   # ---------------------------------------------------------------------------
-  # 릴레이와 워커는 각 저장소가 Docker Hub 에 이미지를 올리면 주석을 푼다.
+  # 워커는 저장소가 이미지를 올리면 주석을 푼다.
   # 이미지 이름과 태그는 .env.integration 에서 받는다.
   # ---------------------------------------------------------------------------
 
@@ -150,20 +150,34 @@ services:
       retries: 10
       start_period: 40s
 
-  # relay:
-  #   image: ${RELAY_IMAGE}
-  #   container_name: aidocs-it-relay
-  #   restart: unless-stopped
-  #   depends_on:
-  #     db-tunnel: { condition: service_healthy }
-  #     kafka: { condition: service_healthy }
-  #   environment:
-  #     # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
-  #     SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-  #     SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #     RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN:-}
+  relay:
+    image: ${RELAY_IMAGE:?.env.integration 에 RELAY_IMAGE 가 필요합니다}
+    container_name: aidocs-it-relay
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      # 스키마 때문에 server 를 기다린다. outbox_event 는 server 의 마이그레이션이 만들고,
+      # 릴레이는 기동할 때 그 형태가 맞는지 확인만 하고 어긋나면 일부러 기동을 중단한다
+      # (잘못된 스키마로 뜨면 발행할 행을 고르는 쿼리가 오류 없이 0건을 돌려주고, 릴레이는
+      # "보낼 게 없다"고 판단해 정상인 척하면서 이벤트만 쌓인다). server 가 healthy 면
+      # 마이그레이션은 이미 끝난 뒤다.
+      server: { condition: service_healthy }
+    environment:
+      # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      # 컨테이너 간 리스너 주소다. 호스트 노출용 localhost:29092 가 아니다.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN:-}
+      TZ: Asia/Seoul
+    ports:
+      # 액추에이터. /actuator/health, /actuator/prometheus, /actuator/outbox/dead
+      - "${RELAY_HOST_PORT:-9090}:9090"
+    # 기본값 10초는 릴레이의 정상 종료 예산(드레인 30초, 종료 단계 상한 40초)보다 짧다.
+    # 그대로 두면 진행 중인 발행이 끝나기 전에 SIGKILL 이 날아간다.
+    stop_grace_period: 45s
 
   # worker:
   #   image: ${WORKER_IMAGE}
