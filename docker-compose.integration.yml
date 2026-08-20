@@ -1,0 +1,203 @@
+# 전체 통합 환경. API 서버·릴레이·워커·카프카를 한 번에 띄운다.
+#
+#   docker compose -f docker-compose.integration.yml --env-file .env.integration up -d
+#
+# DB 는 띄우지 않는다. dev 환경과 마찬가지로 리모트 Tmax OpenSQL 에 붙되,
+# 터널을 db-tunnel 컨테이너가 직접 연다. 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고
+# 호스트 포트도 열지 않는다. 서비스들은 db-tunnel:5432 로 접속한다.
+#
+# 로컬 개발용(docker-compose.yml)과 포트·볼륨을 분리해 두 환경을 동시에 띄울 수 있다.
+# web(React SPA)은 컨테이너로 띄우지 않는다. 호스트에서 실행하고 localhost:8080 을 바라보게 한다.
+
+name: aidocs-integration
+
+services:
+  db-tunnel:
+    image: alpine:3.20
+    container_name: aidocs-it-db-tunnel
+    restart: unless-stopped
+    environment:
+      SSH_HOST: ${SSH_HOST:?.env.integration 에 SSH_HOST 가 필요합니다}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:?.env.integration 에 SSH_USER 가 필요합니다}
+      TUNNEL_REMOTE_HOST: ${TUNNEL_REMOTE_HOST:-127.0.0.1}
+      TUNNEL_REMOTE_PORT: ${TUNNEL_REMOTE_PORT:-5432}
+    volumes:
+      # 읽기 전용 바인드 마운트. 이미지에 굽지 않으므로 이미지를 공유해도 키가 따라가지 않는다.
+      - ${SSH_KEY_PATH:?.env.integration 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
+    # 0.0.0.0 은 이 컨테이너의 인터페이스다. 호스트가 아니라 컴포즈 네트워크에만 열린다.
+    # 키는 소유자·권한 검사를 피하려고 컨테이너 안으로 복사해서 쓴다.
+    command: >
+      sh -c "apk add --no-cache openssh-client >/dev/null &&
+      cp /key /tmp/id && chmod 600 /tmp/id &&
+      exec ssh -N
+      -i /tmp/id
+      -p $${SSH_PORT}
+      -o StrictHostKeyChecking=accept-new
+      -o ExitOnForwardFailure=yes
+      -o ServerAliveInterval=30
+      -o ServerAliveCountMax=3
+      -L 0.0.0.0:5432:$${TUNNEL_REMOTE_HOST}:$${TUNNEL_REMOTE_PORT}
+      $${SSH_USER}@$${SSH_HOST}"
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -q ':5432'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: aidocs-it-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?.env.integration 에 STORAGE_ACCESS_KEY 가 필요합니다}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?.env.integration 에 STORAGE_SECRET_KEY 가 필요합니다}
+      TZ: Asia/Seoul
+    ports:
+      - "${MINIO_HOST_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
+    volumes:
+      - aidocs-it-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: aidocs-it-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?.env.integration 에 STORAGE_BUCKET 이 필요합니다}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${STORAGE_ACCESS_KEY} $${STORAGE_SECRET_KEY} &&
+      mc mb --ignore-existing local/$${STORAGE_BUCKET}
+      "
+
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: aidocs-it-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # 컨테이너끼리는 kafka:9092, 호스트에서 붙을 때는 localhost:29092 를 쓴다.
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # 단일 노드라 복제본을 둘 수 없다.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 토픽은 각 서비스가 알아서 만들게 둔다. 자동 생성 시 파티션 수를 릴레이 설정과 맞춘다.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      TZ: Asia/Seoul
+    ports:
+      - "${KAFKA_HOST_PORT:-29092}:29092"
+    volumes:
+      - aidocs-it-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # 릴레이와 워커 이미지 이름·태그는 .env.integration 에서 받는다.
+  # ---------------------------------------------------------------------------
+
+  server:
+    build: .
+    container_name: aidocs-it-server
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: db-tunnel
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_REGION: ${STORAGE_REGION}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+    ports:
+      - "${SERVER_HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  relay:
+    image: ${RELAY_IMAGE:?.env.integration 에 RELAY_IMAGE 가 필요합니다}
+    container_name: aidocs-it-relay
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      # 스키마 때문에 server 를 기다린다. outbox_event 는 server 의 마이그레이션이 만들고,
+      # 릴레이는 기동할 때 그 형태가 맞는지 확인만 하고 어긋나면 일부러 기동을 중단한다
+      # (잘못된 스키마로 뜨면 발행할 행을 고르는 쿼리가 오류 없이 0건을 돌려주고, 릴레이는
+      # "보낼 게 없다"고 판단해 정상인 척하면서 이벤트만 쌓인다). server 가 healthy 면
+      # 마이그레이션은 이미 끝난 뒤다.
+      server: { condition: service_healthy }
+    environment:
+      # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      # 컨테이너 간 리스너 주소다. 호스트 노출용 localhost:29092 가 아니다.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN:-}
+      TZ: Asia/Seoul
+    ports:
+      # 액추에이터. /actuator/health, /actuator/prometheus, /actuator/outbox/dead
+      - "${RELAY_HOST_PORT:-9090}:9090"
+    # 기본값 10초는 릴레이의 정상 종료 예산(드레인 30초, 종료 단계 상한 40초)보다 짧다.
+    # 그대로 두면 진행 중인 발행이 끝나기 전에 SIGKILL 이 날아간다.
+    stop_grace_period: 45s
+
+  worker:
+    image: ${WORKER_IMAGE:?.env.integration 에 WORKER_IMAGE 가 필요합니다}
+    container_name: aidocs-it-worker
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INDEXING_STORAGE_ENDPOINT: http://minio:9000
+      INDEXING_STORAGE_REGION: ${STORAGE_REGION}
+      INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET}
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+volumes:
+  aidocs-it-minio-data:
+  aidocs-it-kafka-data:

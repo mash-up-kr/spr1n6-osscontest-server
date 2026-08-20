@@ -1,7 +1,9 @@
 # 환경 변수 (.env.example은 커밋 대상이므로 제외하지 않는다)
 .env
 .env.local
+.env.integration
 !.env.example
+!.env.integration.example
 
 # SSH 키와 터널 제어 소켓
 *.pem
