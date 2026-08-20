@@ -2,13 +2,9 @@
 #
 #   docker compose -f docker-compose.integration.yml --env-file .env.integration up -d
 #
-# DB 는 띄우지 않는다. dev 환경과 마찬가지로 리모트 Tmax OpenSQL 에 SSH 터널로 붙으므로,
-# 컨테이너를 올리기 전에 ./scripts/tunnel.sh start 로 터널이 열려 있어야 한다.
-# 컨테이너에서 호스트의 터널 포트로 나가기 위해 host.docker.internal 을 쓴다.
-#
-# 주의: ssh -L 은 바인드 주소를 주지 않으면 127.0.0.1 에만 붙는다. 컨테이너는 호스트의
-# 다른 인터페이스로 들어오므로 그대로면 연결이 거부된다. scripts/tunnel.sh 가
-# 0.0.0.0 에 바인딩하도록 바꾸거나, 터널을 컨테이너 안에서 여는 방식이 필요하다.
+# DB 는 띄우지 않는다. dev 환경과 마찬가지로 리모트 Tmax OpenSQL 에 붙되,
+# 터널을 db-tunnel 컨테이너가 직접 연다. 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고
+# 호스트 포트도 열지 않는다. 서비스들은 db-tunnel:5432 로 접속한다.
 #
 # 로컬 개발용(docker-compose.yml)과 포트·볼륨을 분리해 두 환경을 동시에 띄울 수 있다.
 # web(React SPA)은 컨테이너로 띄우지 않는다. 호스트에서 실행하고 localhost:8080 을 바라보게 한다.
@@ -16,6 +12,40 @@
 name: aidocs-integration
 
 services:
+  db-tunnel:
+    image: alpine:3.20
+    container_name: aidocs-it-db-tunnel
+    restart: unless-stopped
+    environment:
+      SSH_HOST: ${SSH_HOST:?.env.integration 에 SSH_HOST 가 필요합니다}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:?.env.integration 에 SSH_USER 가 필요합니다}
+      TUNNEL_REMOTE_HOST: ${TUNNEL_REMOTE_HOST:-127.0.0.1}
+      TUNNEL_REMOTE_PORT: ${TUNNEL_REMOTE_PORT:-5432}
+    volumes:
+      # 읽기 전용 바인드 마운트. 이미지에 굽지 않으므로 이미지를 공유해도 키가 따라가지 않는다.
+      - ${SSH_KEY_PATH:?.env.integration 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
+    # 0.0.0.0 은 이 컨테이너의 인터페이스다. 호스트가 아니라 컴포즈 네트워크에만 열린다.
+    # 키는 소유자·권한 검사를 피하려고 컨테이너 안으로 복사해서 쓴다.
+    command: >
+      sh -c "apk add --no-cache openssh-client >/dev/null &&
+      cp /key /tmp/id && chmod 600 /tmp/id &&
+      exec ssh -N
+      -i /tmp/id
+      -p $${SSH_PORT}
+      -o StrictHostKeyChecking=accept-new
+      -o ExitOnForwardFailure=yes
+      -o ServerAliveInterval=30
+      -o ServerAliveCountMax=3
+      -L 0.0.0.0:5432:$${TUNNEL_REMOTE_HOST}:$${TUNNEL_REMOTE_PORT}
+      $${SSH_USER}@$${SSH_HOST}"
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ltn | grep -q ':5432'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: aidocs-it-minio
@@ -96,14 +126,13 @@ services:
   #   image: ${SERVER_IMAGE}
   #   container_name: aidocs-it-server
   #   restart: unless-stopped
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
   #   depends_on:
+  #     db-tunnel: { condition: service_healthy }
   #     minio: { condition: service_healthy }
   #   environment:
   #     SPRING_PROFILES_ACTIVE: dev
-  #     DB_HOST: host.docker.internal
-  #     DB_PORT: ${DB_PORT}
+  #     DB_HOST: db-tunnel
+  #     DB_PORT: 5432
   #     DB_NAME: ${DB_NAME}
   #     DB_USERNAME: ${DB_USERNAME}
   #     DB_PASSWORD: ${DB_PASSWORD}
@@ -120,13 +149,12 @@ services:
   #   image: ${RELAY_IMAGE}
   #   container_name: aidocs-it-relay
   #   restart: unless-stopped
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
   #   depends_on:
+  #     db-tunnel: { condition: service_healthy }
   #     kafka: { condition: service_healthy }
   #   environment:
   #     # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:${DB_PORT}/${DB_NAME}
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
   #     SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
   #     SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
   #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -136,13 +164,12 @@ services:
   #   image: ${WORKER_IMAGE}
   #   container_name: aidocs-it-worker
   #   restart: unless-stopped
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
   #   depends_on:
+  #     db-tunnel: { condition: service_healthy }
   #     kafka: { condition: service_healthy }
   #     minio: { condition: service_healthy }
   #   environment:
-  #     DB_URL: jdbc:postgresql://host.docker.internal:${DB_PORT}/${DB_NAME}
+  #     DB_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
   #     DB_USERNAME: ${DB_USERNAME}
   #     DB_PASSWORD: ${DB_PASSWORD}
   #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
