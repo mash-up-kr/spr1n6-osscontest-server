@@ -21,12 +21,16 @@ logging:
 server:
   tomcat:
     max-swallow-size: -1
-    
+
 search:
   default-top-k: 10
   max-top-k: 50
   max-context-window: 5
   embedding:
-    base-url: http://localhost:8081
+    base-url: https://api.openai.com/v1
+    api-key: ${OPENAI_API_KEY:}
+    model: text-embedding-3-small
+    dimensions: 1536
     connect-timeout-ms: 2000
     read-timeout-ms: 5000
+    retry-backoff-ms: 200

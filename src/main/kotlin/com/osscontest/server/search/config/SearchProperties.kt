@@ -18,8 +18,12 @@ data class SearchProperties(
     var embedding: Embedding = Embedding(),
 ) {
     data class Embedding(
-        var baseUrl: String = "http://localhost:8000",
+        var baseUrl: String = "https://api.openai.com/v1",
+        var apiKey: String = "",
+        var model: String = "text-embedding-3-small",
+        var dimensions: Int = 1_536,
         var connectTimeoutMs: Long = 2_000,
         var readTimeoutMs: Long = 5_000,
+        var retryBackoffMs: Long = 200,
     )
 }
