@@ -118,8 +118,7 @@ services:
       start_period: 15s
 
   # ---------------------------------------------------------------------------
-  # 워커는 저장소가 이미지를 올리면 주석을 푼다.
-  # 이미지 이름과 태그는 .env.integration 에서 받는다.
+  # 릴레이와 워커 이미지 이름·태그는 .env.integration 에서 받는다.
   # ---------------------------------------------------------------------------
 
   server:
@@ -179,25 +178,25 @@ services:
     # 그대로 두면 진행 중인 발행이 끝나기 전에 SIGKILL 이 날아간다.
     stop_grace_period: 45s
 
-  # worker:
-  #   image: ${WORKER_IMAGE}
-  #   container_name: aidocs-it-worker
-  #   restart: unless-stopped
-  #   depends_on:
-  #     db-tunnel: { condition: service_healthy }
-  #     kafka: { condition: service_healthy }
-  #     minio: { condition: service_healthy }
-  #   environment:
-  #     DB_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
-  #     DB_USERNAME: ${DB_USERNAME}
-  #     DB_PASSWORD: ${DB_PASSWORD}
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #     INDEXING_STORAGE_ENDPOINT: http://minio:9000
-  #     INDEXING_STORAGE_REGION: ${STORAGE_REGION}
-  #     INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET}
-  #     AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
-  #     AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
-  #     OPENAI_API_KEY: ${OPENAI_API_KEY}
+  worker:
+    image: ${WORKER_IMAGE:?.env.integration 에 WORKER_IMAGE 가 필요합니다}
+    container_name: aidocs-it-worker
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INDEXING_STORAGE_ENDPOINT: http://minio:9000
+      INDEXING_STORAGE_REGION: ${STORAGE_REGION}
+      INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET}
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
   aidocs-it-minio-data:
