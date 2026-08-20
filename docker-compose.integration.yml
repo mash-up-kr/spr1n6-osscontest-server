@@ -2,32 +2,20 @@
 #
 #   docker compose -f docker-compose.integration.yml --env-file .env.integration up -d
 #
+# DB 는 띄우지 않는다. dev 환경과 마찬가지로 리모트 Tmax OpenSQL 에 SSH 터널로 붙으므로,
+# 컨테이너를 올리기 전에 ./scripts/tunnel.sh start 로 터널이 열려 있어야 한다.
+# 컨테이너에서 호스트의 터널 포트로 나가기 위해 host.docker.internal 을 쓴다.
+#
+# 주의: ssh -L 은 바인드 주소를 주지 않으면 127.0.0.1 에만 붙는다. 컨테이너는 호스트의
+# 다른 인터페이스로 들어오므로 그대로면 연결이 거부된다. scripts/tunnel.sh 가
+# 0.0.0.0 에 바인딩하도록 바꾸거나, 터널을 컨테이너 안에서 여는 방식이 필요하다.
+#
 # 로컬 개발용(docker-compose.yml)과 포트·볼륨을 분리해 두 환경을 동시에 띄울 수 있다.
 # web 은 컨테이너로 띄우지 않는다. 호스트에서 실행하고 localhost:8080 을 바라보게 한다.
 
 name: aidocs-integration
 
 services:
-  postgres:
-    image: pgvector/pgvector:pg17
-    container_name: aidocs-it-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:?.env.integration 에 DB_NAME 이 필요합니다}
-      POSTGRES_USER: ${DB_USERNAME:?.env.integration 에 DB_USERNAME 이 필요합니다}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?.env.integration 에 DB_PASSWORD 가 필요합니다}
-      TZ: Asia/Seoul
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
-    volumes:
-      - aidocs-it-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: aidocs-it-minio
@@ -108,13 +96,14 @@ services:
   #   image: ${SERVER_IMAGE}
   #   container_name: aidocs-it-server
   #   restart: unless-stopped
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
   #   depends_on:
-  #     postgres: { condition: service_healthy }
   #     minio: { condition: service_healthy }
   #   environment:
   #     SPRING_PROFILES_ACTIVE: dev
-  #     DB_HOST: postgres
-  #     DB_PORT: 5432
+  #     DB_HOST: host.docker.internal
+  #     DB_PORT: ${DB_PORT}
   #     DB_NAME: ${DB_NAME}
   #     DB_USERNAME: ${DB_USERNAME}
   #     DB_PASSWORD: ${DB_PASSWORD}
@@ -131,12 +120,13 @@ services:
   #   image: ${RELAY_IMAGE}
   #   container_name: aidocs-it-relay
   #   restart: unless-stopped
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
   #   depends_on:
-  #     postgres: { condition: service_healthy }
   #     kafka: { condition: service_healthy }
   #   environment:
   #     # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:${DB_PORT}/${DB_NAME}
   #     SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
   #     SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
   #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -146,12 +136,13 @@ services:
   #   image: ${WORKER_IMAGE}
   #   container_name: aidocs-it-worker
   #   restart: unless-stopped
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
   #   depends_on:
-  #     postgres: { condition: service_healthy }
   #     kafka: { condition: service_healthy }
   #     minio: { condition: service_healthy }
   #   environment:
-  #     DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
+  #     DB_URL: jdbc:postgresql://host.docker.internal:${DB_PORT}/${DB_NAME}
   #     DB_USERNAME: ${DB_USERNAME}
   #     DB_PASSWORD: ${DB_PASSWORD}
   #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -163,6 +154,5 @@ services:
   #     OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
-  aidocs-it-postgres-data:
   aidocs-it-minio-data:
   aidocs-it-kafka-data:
