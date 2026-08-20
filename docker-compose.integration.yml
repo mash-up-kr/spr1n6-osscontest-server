@@ -135,8 +135,11 @@ services:
   #     postgres: { condition: service_healthy }
   #     kafka: { condition: service_healthy }
   #   environment:
-  #     # TODO: relay 가 DB 접속 정보를 어떤 변수명으로 읽는지 확인 후 채운다.
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
+  #     SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+  #     SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   #     RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN:-}
 
   # worker:
