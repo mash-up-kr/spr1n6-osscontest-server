@@ -15,17 +15,11 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
-import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.delete
-import org.springframework.test.web.servlet.get
-import org.springframework.test.web.servlet.multipart
-import org.springframework.test.web.servlet.patch
-import org.springframework.test.web.servlet.post
-import org.springframework.test.web.servlet.put
+import org.springframework.test.web.servlet.*
 import org.springframework.transaction.annotation.Transactional
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -35,11 +29,16 @@ import kotlin.test.assertNotNull
 @Transactional
 class DocumentApiTest {
 
-    @Autowired private lateinit var mockMvc: MockMvc
-    @Autowired private lateinit var em: EntityManager
-    @Autowired private lateinit var objectStorage: ObjectStorage
-    @Autowired private lateinit var s3: S3Client
-    @Autowired private lateinit var storageProperties: StorageProperties
+    @Autowired
+    private lateinit var mockMvc: MockMvc
+    @Autowired
+    private lateinit var em: EntityManager
+    @Autowired
+    private lateinit var objectStorage: ObjectStorage
+    @Autowired
+    private lateinit var s3: S3Client
+    @Autowired
+    private lateinit var storageProperties: StorageProperties
 
     private lateinit var tenant: Tenant
     private lateinit var user: AppUser
@@ -304,7 +303,12 @@ class DocumentApiTest {
         }.andExpect {
             status { isOk() }
             header { string("Content-Type", "application/pdf") }
-            header { string(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("filename*=")) }
+            header {
+                string(
+                    org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                    org.hamcrest.Matchers.containsString("filename*=")
+                )
+            }
         }.andReturn().response
 
         assertContentEquals(content, response.contentAsByteArray)
@@ -409,6 +413,7 @@ class DocumentApiTest {
             documentId = documentId,
             versionId = versionId,
             status = "FAILED",
+            phase = "CHUNKING",
             attemptCount = 2,
             lastErrorMessage = "파싱 실패",
         )
@@ -419,6 +424,7 @@ class DocumentApiTest {
             status { isOk() }
             jsonPath("$.versionNo") { value(1) }
             jsonPath("$.status") { value("FAILED") }
+            jsonPath("$.phase") { value("CHUNKING") }
             jsonPath("$.attemptCount") { value(2) }
             jsonPath("$.lastErrorMessage") { value("파싱 실패") }
         }
@@ -605,7 +611,7 @@ class DocumentApiTest {
     private fun latestVersion(): Map<String, Any?> =
         em.createNativeQuery(
             "SELECT id, document_id, source_object_key, convert_from(app_decrypt(original_filename), 'UTF8') AS original_filename, " +
-                "mime_type, content_hash FROM document_version ORDER BY id DESC LIMIT 1",
+                    "mime_type, content_hash FROM document_version ORDER BY id DESC LIMIT 1",
             Map::class.java,
         ).singleResult as Map<String, Any?>
 
@@ -641,6 +647,7 @@ class DocumentApiTest {
         documentId: Long,
         versionId: Long,
         status: String,
+        phase: String? = null,
         attemptCount: Int,
         lastErrorMessage: String? = null,
     ) {
@@ -651,6 +658,7 @@ class DocumentApiTest {
                 document_id,
                 document_version_id,
                 status,
+                phase,
                 attempt_count,
                 last_error_message,
                 created_at,
@@ -661,6 +669,7 @@ class DocumentApiTest {
                 :documentId,
                 :versionId,
                 :status,
+                :phase,
                 :attemptCount,
                 :lastErrorMessage,
                 now(),
@@ -672,6 +681,7 @@ class DocumentApiTest {
             .setParameter("documentId", documentId)
             .setParameter("versionId", versionId)
             .setParameter("status", status)
+            .setParameter("phase", phase)
             .setParameter("attemptCount", attemptCount)
             .setParameter("lastErrorMessage", lastErrorMessage)
             .executeUpdate()
