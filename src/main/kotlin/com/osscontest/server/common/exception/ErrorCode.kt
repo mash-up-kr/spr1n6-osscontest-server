@@ -28,5 +28,9 @@ enum class ErrorCode(val status: HttpStatus, val message: String) {
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "검색어 처리 중 오류가 발생했습니다."),
 
     /** 권한 */
+    FORBIDDEN(HttpStatus.FORBIDDEN, "해당 문서에 대한 권한이 없습니다."),
+    PRINCIPAL_NOT_FOUND(HttpStatus.BAD_REQUEST, "권한을 부여할 대상을 찾을 수 없습니다."),
+    PERMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "문서에 부여된 권한을 찾을 수 없습니다."),
+    OWNER_PERMISSION_NOT_REVOCABLE(HttpStatus.BAD_REQUEST, "소유자의 권한은 회수할 수 없습니다."),
     ;
 }

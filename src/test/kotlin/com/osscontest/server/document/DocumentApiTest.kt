@@ -337,8 +337,8 @@ class DocumentApiTest {
             contentType = MediaType.APPLICATION_JSON
             content = """{"title":"새 제목"}"""
         }.andExpect {
-            status { isNotFound() }
-            jsonPath("$.code") { value("DOCUMENT_NOT_FOUND") }
+            status { isForbidden() }
+            jsonPath("$.code") { value("FORBIDDEN") }
         }
     }
 
@@ -536,6 +536,55 @@ class DocumentApiTest {
         }.andExpect {
             status { isConflict() }
             jsonPath("$.code") { value("INDEXING_RETRY_NOT_ALLOWED") }
+        }
+    }
+
+    @Test
+    fun `문서를 만들면 소유자 ADMIN 과 테넌트 READ 권한이 생긴다`() {
+        val documentId = createDocument("권한 본문".toByteArray())
+
+        mockMvc.get("/api/v1/documents/$documentId/permissions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(2) }
+            jsonPath("$.items[0].principalType") { value("USER") }
+            jsonPath("$.items[0].principalId") { value(user.id.toString()) }
+            jsonPath("$.items[0].permission") { value("ADMIN") }
+            jsonPath("$.items[1].principalType") { value("TENANT") }
+            jsonPath("$.items[1].principalId") { value(tenant.id.toString()) }
+            jsonPath("$.items[1].permission") { value("READ") }
+        }
+    }
+
+    @Test
+    fun `소유자의 권한은 회수하지 못한다`() {
+        val documentId = createDocument("권한 본문".toByteArray())
+
+        mockMvc.delete("/api/v1/documents/$documentId/permissions/USER/${user.id}") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("OWNER_PERMISSION_NOT_REVOCABLE") }
+        }
+    }
+
+    @Test
+    fun `테넌트 READ 를 회수하면 다른 사용자가 읽지 못한다`() {
+        val documentId = createDocument("권한 본문".toByteArray())
+        val sameTenantUser = AppUser(tenant = tenant, email = "d@example.com", name = "최민서")
+            .also { em.persist(it) }
+        em.flush()
+
+        mockMvc.delete("/api/v1/documents/$documentId/permissions/TENANT/${tenant.id}") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect { status { isNoContent() } }
+
+        mockMvc.get("/api/v1/documents/$documentId") {
+            header(USER_ID_HEADER, sameTenantUser.id.toString())
+        }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("FORBIDDEN") }
         }
     }
 

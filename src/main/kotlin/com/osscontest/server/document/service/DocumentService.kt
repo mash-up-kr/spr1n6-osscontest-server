@@ -18,8 +18,12 @@ import com.osscontest.server.document.api.ListDocumentVersionsRequest
 import com.osscontest.server.document.api.ListDocumentsRequest
 import com.osscontest.server.document.api.SearchableVersionResponse
 import com.osscontest.server.document.domain.Document
+import com.osscontest.server.document.domain.DocumentAccessScope
 import com.osscontest.server.document.domain.DocumentVersion
+import com.osscontest.server.document.domain.Permission
+import com.osscontest.server.document.domain.PrincipalType
 import com.osscontest.server.document.domain.UploadFileType
+import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
 import com.osscontest.server.indexing.domain.IndexingJob
@@ -51,6 +55,8 @@ class DocumentService(
     private val tenantRepository: TenantRepository,
     private val objectStorage: ObjectStorage,
     private val entityManager: EntityManager,
+    private val documentAccessChecker: DocumentAccessChecker,
+    private val documentAccessScopeRepository: DocumentAccessScopeRepository,
 ) {
 
     @Transactional
@@ -67,6 +73,7 @@ class DocumentService(
             documentRepository.save(it)
         }
 
+        grantInitialPermissions(authContext, document)
         saveVersion(authContext, document, FIRST_VERSION_NO, file, fileType)
 
         return DocumentUploadResponse(
@@ -82,13 +89,7 @@ class DocumentService(
         val fileType = resolveFileType(file)
         passTraceIdToTrigger()
 
-        val document = documentRepository.findActiveWritableForUpdate(
-            id = documentId,
-            tenantId = authContext.tenantId,
-            tenantPrincipalId = authContext.tenantId.toString(),
-            userPrincipalId = authContext.userId.toString(),
-        )
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        val document = findWritableDocumentForUpdate(authContext, documentId)
 
         val versionNo = document.latestUploadVersionNo + 1
         document.latestUploadVersionNo = versionNo
@@ -118,7 +119,7 @@ class DocumentService(
         var nextCursor: String? = null
 
         while (items.size <= request.limit) {
-            val documents = findDocumentPage(authContext.tenantId, cursorId, request.q)
+            val documents = findDocumentPage(authContext, cursorId, request.q)
             if (documents.isEmpty()) break
 
             val summaryContext = summaryContext(documents)
@@ -332,27 +333,60 @@ class DocumentService(
     private fun baseName(file: MultipartFile): String =
         file.originalFilename?.substringBeforeLast('.').orEmpty().ifBlank { "제목 없음" }
 
+    /**
+     * 소유자에게 ADMIN, 소속 테넌트에 READ 를 부여한다.
+     * 문서 접근과 검색이 모두 document_access_scope 만 보므로 생성 시점에 넣는다.
+     */
+    private fun grantInitialPermissions(authContext: AuthContext, document: Document) {
+        documentAccessScopeRepository.saveAll(
+            listOf(
+                DocumentAccessScope(
+                    document = document,
+                    principalType = PrincipalType.USER,
+                    principalId = authContext.userId.toString(),
+                    permission = Permission.ADMIN,
+                    grantedByPrincipalId = authContext.userId.toString(),
+                ),
+                DocumentAccessScope(
+                    document = document,
+                    principalType = PrincipalType.TENANT,
+                    principalId = authContext.tenantId.toString(),
+                    permission = Permission.READ,
+                    grantedByPrincipalId = authContext.userId.toString(),
+                ),
+            ),
+        )
+    }
+
     private fun findReadableDocument(authContext: AuthContext, documentId: Long): Document =
-        documentRepository.findActive(documentId, authContext.tenantId)
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        documentAccessChecker.requireReadable(authContext, documentId)
 
     private fun findWritableDocumentForUpdate(authContext: AuthContext, documentId: Long): Document =
-        documentRepository.findActiveWritableForUpdate(
-            id = documentId,
-            tenantId = authContext.tenantId,
-            tenantPrincipalId = authContext.tenantId.toString(),
-            userPrincipalId = authContext.userId.toString(),
-        )
-            ?: throw BusinessException(ErrorCode.DOCUMENT_NOT_FOUND)
+        documentAccessChecker.requireWritableForUpdate(authContext, documentId)
 
-    private fun findDocumentPage(tenantId: Long, cursorId: Long?, q: String?): List<Document> {
+    private fun findDocumentPage(authContext: AuthContext, cursorId: Long?, q: String?): List<Document> {
         val pageable = PageRequest.of(0, PAGE_SCAN_SIZE)
         val keyword = q?.takeIf { it.isNotBlank() }?.lowercase()
+        val tenantPrincipalId = authContext.tenantId.toString()
+        val userPrincipalId = authContext.userId.toString()
 
         return if (keyword == null) {
-            documentRepository.findActivePage(tenantId, cursorId, pageable)
+            documentRepository.findActivePage(
+                tenantId = authContext.tenantId,
+                cursorId = cursorId,
+                tenantPrincipalId = tenantPrincipalId,
+                userPrincipalId = userPrincipalId,
+                pageable = pageable,
+            )
         } else {
-            documentRepository.findActivePageByTitle(tenantId, cursorId, "%${keyword.escapeLike()}%", pageable)
+            documentRepository.findActivePageByTitle(
+                tenantId = authContext.tenantId,
+                cursorId = cursorId,
+                titlePattern = "%${keyword.escapeLike()}%",
+                tenantPrincipalId = tenantPrincipalId,
+                userPrincipalId = userPrincipalId,
+                pageable = pageable,
+            )
         }
     }
 
