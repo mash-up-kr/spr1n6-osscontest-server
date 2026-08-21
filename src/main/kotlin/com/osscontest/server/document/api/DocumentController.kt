@@ -123,21 +123,4 @@ class DocumentController(
             )
             .body(InputStreamResource(file.content))
     }
-
-    @GetMapping("/{documentId}/versions/{versionNo}/indexing")
-    fun getIndexingStatus(
-        authContext: AuthContext,
-        @PathVariable documentId: Long,
-        @PathVariable versionNo: Long,
-    ): IndexingStatusResponse =
-        documentService.getIndexingStatus(authContext, documentId, versionNo)
-
-    @PostMapping("/{documentId}/versions/{versionNo}/indexing/retry")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    fun retryIndexing(
-        authContext: AuthContext,
-        @PathVariable documentId: Long,
-        @PathVariable versionNo: Long,
-    ): IndexingRetryResponse =
-        documentService.retryIndexing(authContext, documentId, versionNo)
 }
