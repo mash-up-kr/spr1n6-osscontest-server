@@ -12,6 +12,17 @@ spring:
       connection-init-sql: "SELECT set_config('app.encryption_key', '${DB_ENCRYPTION_KEY}', false)"
   jpa:
     open-in-view: false
+  ai:
+    model:
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      timeout: 5s
+      max-retries: 2
+      embedding:
+        model: text-embedding-3-small
+        dimensions: 1536
+        encoding-format: float
 
 logging:
   pattern:
@@ -27,10 +38,4 @@ search:
   max-top-k: 50
   max-context-window: 5
   embedding:
-    base-url: https://api.openai.com/v1
-    api-key: ${OPENAI_API_KEY:}
-    model: text-embedding-3-small
     dimensions: 1536
-    connect-timeout-ms: 2000
-    read-timeout-ms: 5000
-    retry-backoff-ms: 200

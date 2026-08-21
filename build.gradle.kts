@@ -21,8 +21,6 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    // Boot 4는 RestClient 관련 자동 설정도 별도 모듈로 분리됐다.
-    implementation("org.springframework.boot:spring-boot-starter-restclient")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -30,6 +28,8 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.0"))
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
     implementation(platform("software.amazon.awssdk:bom:2.46.7"))
     implementation("software.amazon.awssdk:s3") {
         // 동기 클라이언트만 쓰므로 비동기용 Netty 는 제거
