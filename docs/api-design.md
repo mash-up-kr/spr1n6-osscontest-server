@@ -1,9 +1,9 @@
 # API 설계 초안
 
-| 항목 | 값 |
-|---|---|
+| 항목        | 값                                |
+|-----------|----------------------------------|
 | 기준 마이그레이션 | `V20260812_001__init_schema.sql` |
-| 작성일 | 2026-08-15 |
+| 작성일       | 2026-08-15                       |
 
 ---
 
@@ -72,39 +72,39 @@ GET /api/v1/documents?limit=20&cursor=eyJpZCI6NDJ9
 }
 ```
 
-| 상태 | 쓰는 경우 |
-|---|---|
-| `202` | 업로드·재인덱싱처럼 비동기 처리를 시작한 경우 |
-| `400` | 요청 형식·검증 실패 |
-| `401` | `X-User-Id`가 없거나 존재하지 않는 유저인 경우 |
-| `403` | 같은 테넌트 안에서 권한이 없는 경우 |
-| `404` | 없는 문서, 소프트 삭제된 문서, 다른 테넌트의 문서 |
+| 상태    | 쓰는 경우                               |
+|-------|-------------------------------------|
+| `202` | 업로드·재인덱싱처럼 비동기 처리를 시작한 경우           |
+| `400` | 요청 형식·검증 실패                         |
+| `401` | `X-User-Id`가 없거나 존재하지 않는 유저인 경우     |
+| `403` | 같은 테넌트 안에서 권한이 없는 경우                |
+| `404` | 없는 문서, 소프트 삭제된 문서, 다른 테넌트의 문서       |
 | `409` | 임베딩이 실패하지 않은 버전에 재인덱싱을 요청하는 등 상태 충돌 |
-| `413` | 파일 크기 초과 |
-| `415` | 지원하지 않는 형식 |
+| `413` | 파일 크기 초과                            |
+| `415` | 지원하지 않는 형식                          |
 
 ---
 
 ## 4. 엔드포인트 목록
 
-| 메서드 | 경로 | 우선 |
-|---|---|---|
-| `POST` | `/api/v1/documents` | P0 |
-| `GET` | `/api/v1/documents` | P0 |
-| `GET` | `/api/v1/documents/{documentId}` | P0 |
-| `DELETE` | `/api/v1/documents/{documentId}` | P1 |
-| `PATCH` | `/api/v1/documents/{documentId}` | P2 |
-| `POST` | `/api/v1/documents/{documentId}/versions` | P1 |
-| `GET` | `/api/v1/documents/{documentId}/versions` | P1 |
-| `GET` | `/api/v1/documents/{documentId}/versions/{versionNo}` | P2 |
-| `GET` | `/api/v1/documents/{documentId}/versions/{versionNo}/content` | P1 |
-| `PUT` | `/api/v1/documents/{documentId}/searchable-version` | P2 |
-| `GET` | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing` | P0 |
-| `GET` | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/events` | P0 |
-| `POST` | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry` | P1 |
-| `POST` | `/api/v1/search` | P0 |
-| `GET` | `/api/v1/documents/{documentId}/permissions` | P2 |
-| `PUT` | `/api/v1/documents/{documentId}/permissions` | P2 |
+| 메서드      | 경로                                                                         | 우선 |
+|----------|----------------------------------------------------------------------------|----|
+| `POST`   | `/api/v1/documents`                                                        | P0 |
+| `GET`    | `/api/v1/documents`                                                        | P0 |
+| `GET`    | `/api/v1/documents/{documentId}`                                           | P0 |
+| `DELETE` | `/api/v1/documents/{documentId}`                                           | P1 |
+| `PATCH`  | `/api/v1/documents/{documentId}`                                           | P2 |
+| `POST`   | `/api/v1/documents/{documentId}/versions`                                  | P1 |
+| `GET`    | `/api/v1/documents/{documentId}/versions`                                  | P1 |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}`                      | P2 |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/content`              | P1 |
+| `PUT`    | `/api/v1/documents/{documentId}/searchable-version`                        | P2 |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing`             | P0 |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/events`      | P0 |
+| `POST`   | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry`       | P1 |
+| `POST`   | `/api/v1/search`                                                           | P0 |
+| `GET`    | `/api/v1/documents/{documentId}/permissions`                               | P2 |
+| `PUT`    | `/api/v1/documents/{documentId}/permissions`                               | P2 |
 | `DELETE` | `/api/v1/documents/{documentId}/permissions/{principalType}/{principalId}` | P2 |
 
 ---
@@ -118,20 +118,20 @@ POST /api/v1/documents
 Content-Type: multipart/form-data
 ```
 
-| 파트 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `file` | file | O | 원본 파일 |
-| `title` | string | X | 없으면 파일명에서 확장자를 뗀 값 |
+| 파트      | 타입     | 필수 | 설명                 |
+|---------|--------|----|--------------------|
+| `file`  | file   | O  | 원본 파일              |
+| `title` | string | X  | 없으면 파일명에서 확장자를 뗀 값 |
 
 `file`은 20MB 이하이며 확장자가 다음 중 하나여야 합니다. 저장되는 `mimeType` 은 확장자로 정합니다.
 
-| 확장자 | `mimeType` |
-|---|---|
-| `.pdf` | `application/pdf` |
-| `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
-| `.md`, `.markdown` | `text/markdown` |
-| `.hwp` | `application/x-hwp` |
-| `.txt` | `text/plain` |
+| 확장자                | `mimeType`                                                                |
+|--------------------|---------------------------------------------------------------------------|
+| `.pdf`             | `application/pdf`                                                         |
+| `.docx`            | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| `.md`, `.markdown` | `text/markdown`                                                           |
+| `.hwp`             | `application/x-hwp`                                                       |
+| `.txt`             | `text/plain`                                                              |
 
 ```json
 202 Accepted
@@ -140,7 +140,9 @@ Content-Type: multipart/form-data
   "documentId": 42,
   "versionNo": 1,
   "duplicateOfVersionNo": null,
-  "indexing": { "status": "PENDING" }
+  "indexing": {
+    "status": "PENDING"
+  }
 }
 ```
 
@@ -152,13 +154,13 @@ Content-Type: multipart/form-data
 GET /api/v1/documents
 ```
 
-| 파라미터 | 타입 | 기본 | 설명 |
-|---|---|---|---|
-| `limit` | integer | 20 | 최대 100 |
-| `cursor` | string | | 다음 페이지 커서 |
-| `q` | string | | 제목 부분 일치 |
-| `indexingStatus` | enum | | 최신 버전의 인덱싱 상태로 필터 |
-| `searchable` | boolean | | 검색 가능 여부로 필터 |
+| 파라미터             | 타입      | 기본 | 설명                |
+|------------------|---------|----|-------------------|
+| `limit`          | integer | 20 | 최대 100            |
+| `cursor`         | string  |    | 다음 페이지 커서         |
+| `q`              | string  |    | 제목 부분 일치          |
+| `indexingStatus` | enum    |    | 최신 버전의 인덱싱 상태로 필터 |
+| `searchable`     | boolean |    | 검색 가능 여부로 필터      |
 
 ```json
 200 OK
@@ -230,7 +232,10 @@ Content-Type: application/json
 ```json
 200 OK
 
-{ "id": 42, "title": "2026 사업계획서 (최종)" }
+{
+  "id": 42,
+  "title": "2026 사업계획서 (최종)"
+}
 ```
 
 재인덱싱하지 않습니다.
@@ -248,9 +253,9 @@ POST /api/v1/documents/{documentId}/versions
 Content-Type: multipart/form-data
 ```
 
-| 파트 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `file` | file | O | 원본 파일 |
+| 파트     | 타입   | 필수 | 설명    |
+|--------|------|----|-------|
+| `file` | file | O  | 원본 파일 |
 
 ```json
 202 Accepted
@@ -259,7 +264,9 @@ Content-Type: multipart/form-data
   "documentId": 42,
   "versionNo": 3,
   "duplicateOfVersionNo": 1,
-  "indexing": { "status": "PENDING" }
+  "indexing": {
+    "status": "PENDING"
+  }
 }
 ```
 
@@ -285,7 +292,10 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2481920,
       "uploadedAt": "2026-08-15T04:12:09Z",
-      "indexing": { "status": "PROCESSING", "attemptCount": 1 },
+      "indexing": {
+        "status": "PROCESSING",
+        "attemptCount": 1
+      },
       "searchable": false
     },
     {
@@ -294,7 +304,10 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2390144,
       "uploadedAt": "2026-08-10T02:00:00Z",
-      "indexing": { "status": "COMPLETED", "chunkCount": 178 },
+      "indexing": {
+        "status": "COMPLETED",
+        "chunkCount": 178
+      },
       "searchable": true
     }
   ],
@@ -342,7 +355,9 @@ Content-Type: application/json
 ```json
 200 OK
 
-{ "searchableVersionNo": 2 }
+{
+  "searchableVersionNo": 2
+}
 ```
 
 임베딩이 완료된 버전만 지정할 수 있습니다. 다음 임베딩이 완료되면 최신 버전으로 다시 옮겨갑니다.
@@ -365,6 +380,7 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
 {
   "versionNo": 3,
   "status": "PROCESSING",
+  "phase": "EMBEDDING",
   "attemptCount": 1,
   "chunkCount": null,
   "startedAt": "2026-08-15T04:12:11Z",
@@ -375,6 +391,7 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
 
 해당 버전의 가장 최근 `outbox_event`에 대응하는 `indexing_job` 행입니다. 워커가 아직 그 이벤트를
 소비하지 않았으면 `status`는 `PENDING`입니다.
+`phase`는 워커가 기록한 현재 처리 단계이며, 잡 생성 전이거나 단계가 기록되지 않았으면 `null`입니다.
 `COMPLETED` 와 `FAILED` 가 종료 상태이며, 클라이언트는 여기서 폴링을 멈춥니다.
 
 `404`
@@ -390,7 +407,9 @@ POST /api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry
 
 {
   "versionNo": 3,
-  "indexing": { "status": "PENDING" }
+  "indexing": {
+    "status": "PENDING"
+  }
 }
 ```
 
@@ -417,12 +436,12 @@ Content-Type: application/json
 }
 ```
 
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `query` | string | O | 검색 질의문 |
-| `topK` | integer | X | 기본 10, 최대 50 |
-| `contextWindow` | integer | X | 매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함), 최대 5 |
-| `efSearch` | integer | X | HNSW 검색 시 탐색 폭. 기본 100. 클수록 정확도↑ 지연↑ |
+| 필드              | 타입      | 필수 | 설명                                     |
+|-----------------|---------|----|----------------------------------------|
+| `query`         | string  | O  | 검색 질의문                                 |
+| `topK`          | integer | X  | 기본 10, 최대 50                           |
+| `contextWindow` | integer | X  | 매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함), 최대 5 |
+| `efSearch`      | integer | X  | HNSW 검색 시 탐색 폭. 기본 100. 클수록 정확도↑ 지연↑   |
 
 ```json
 200 OK
@@ -434,8 +453,12 @@ Content-Type: application/json
       "documentId": 42,
       "title": "2026 사업계획서",
       "content": "이 경우 위약금은 계약금의 10%를 초과할 수 없다.",
-      "contextBefore": ["본 계약을 체결일로부터 3개월 이내에 해지하는 경우,"],
-      "contextAfter": ["다만 천재지변으로 인한 해지는 예외로 한다."],
+      "contextBefore": [
+        "본 계약을 체결일로부터 3개월 이내에 해지하는 경우,"
+      ],
+      "contextAfter": [
+        "다만 천재지변으로 인한 해지는 예외로 한다."
+      ],
       "score": 0.0421,
       "pageFrom": 12,
       "pageTo": 12,
@@ -470,8 +493,16 @@ GET /api/v1/documents/{documentId}/permissions
 
 {
   "items": [
-    { "principalType": "USER", "principalId": "17", "permission": "WRITE" },
-    { "principalType": "TENANT", "principalId": "1", "permission": "READ" }
+    {
+      "principalType": "USER",
+      "principalId": "17",
+      "permission": "WRITE"
+    },
+    {
+      "principalType": "TENANT",
+      "principalId": "1",
+      "permission": "READ"
+    }
   ]
 }
 ```
@@ -490,7 +521,11 @@ Content-Type: application/json
 ```json
 200 OK
 
-{ "principalType": "USER", "principalId": "17", "permission": "WRITE" }
+{
+  "principalType": "USER",
+  "principalId": "17",
+  "permission": "WRITE"
+}
 ```
 
 이미 있으면 `permission`을 바꿉니다.

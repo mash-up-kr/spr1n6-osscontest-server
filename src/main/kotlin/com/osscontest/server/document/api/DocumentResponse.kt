@@ -59,6 +59,7 @@ data class DocumentVersionDetailResponse(
 data class IndexingStatusResponse(
     val versionNo: Long,
     val status: IndexingStatus,
+    val phase: String?,
     val attemptCount: Int,
     val chunkCount: Int?,
     val startedAt: Instant?,

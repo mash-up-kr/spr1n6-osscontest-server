@@ -1,15 +1,7 @@
 package com.osscontest.server.document.domain
 
 import com.osscontest.server.common.domain.BaseCreatedAtEntity
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import org.hibernate.annotations.ColumnTransformer
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
@@ -49,12 +41,15 @@ class DocumentVersion(
     @Column(name = "created_by_principal_id", nullable = false, length = 255)
     var createdByPrincipalId: String,
 
-) : BaseCreatedAtEntity() {
+    ) : BaseCreatedAtEntity() {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     var id: Long? = null
+
+    @Column(name = "embedding_version_no", nullable = false)
+    var embeddingVersionNo: Long = versionNo
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "source_metadata")

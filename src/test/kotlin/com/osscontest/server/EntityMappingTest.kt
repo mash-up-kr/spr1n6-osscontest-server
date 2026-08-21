@@ -1,10 +1,6 @@
 package com.osscontest.server
 
-import com.osscontest.server.document.domain.Document
-import com.osscontest.server.document.domain.DocumentAccessScope
-import com.osscontest.server.document.domain.DocumentVersion
-import com.osscontest.server.document.domain.Permission
-import com.osscontest.server.document.domain.PrincipalType
+import com.osscontest.server.document.domain.*
 import com.osscontest.server.indexing.domain.IndexingJob
 import com.osscontest.server.indexing.domain.IndexingStatus
 import com.osscontest.server.outbox.domain.OutboxEvent
@@ -18,7 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -87,6 +83,7 @@ class EntityMappingTest {
         assertNull(reloadedDocument.searchableVersionId)
 
         val reloadedVersion = em.find(DocumentVersion::class.java, version.id)
+        assertEquals(reloadedVersion.versionNo, reloadedVersion.embeddingVersionNo)
         assertEquals("web", reloadedVersion.sourceMetadata?.get("uploadedFrom"))
         assertEquals(12, reloadedVersion.sourceMetadata?.get("pageCount"))
 
@@ -196,6 +193,7 @@ class EntityMappingTest {
             status = IndexingStatus.FAILED,
         ).also {
             it.attemptCount = 3
+            it.phase = "EMBEDDING"
             it.lastErrorCode = "EMBEDDING_TIMEOUT"
             it.lastErrorMessage = "임베딩 응답이 없습니다"
             it.completedAt = Instant.now()
@@ -208,6 +206,7 @@ class EntityMappingTest {
         val reloaded = em.find(IndexingJob::class.java, job.id)
         assertEquals(IndexingStatus.FAILED, reloaded.status)
         assertEquals(3, reloaded.attemptCount)
+        assertEquals("EMBEDDING", reloaded.phase)
         assertEquals("EMBEDDING_TIMEOUT", reloaded.lastErrorCode)
         assertEquals("임베딩 응답이 없습니다", reloaded.lastErrorMessage)
         assertNotNull(reloaded.completedAt)

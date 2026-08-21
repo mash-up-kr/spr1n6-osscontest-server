@@ -1,43 +1,48 @@
 package com.osscontest.server.search.infrastructure
 
+import com.openai.errors.OpenAIException
 import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
+import com.osscontest.server.search.config.SearchProperties
 import org.slf4j.LoggerFactory
-import org.springframework.http.MediaType
+import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
-import org.springframework.web.client.body
 
 /**
- * 질의 임베딩 호출. 인덱싱 파이프라인과 같은 `POST /embed` 계약을 그대로 쓴다 — 모델은 동일,
- * 호출자만 다르다. 인덱싱은 실패 시 비동기 재시도로 넘기지만, 검색은 사용자가 기다리는
- * 실시간 요청이라 실패하면 그 자리에서 바로 에러를 반환한다 (재시도 없음).
+ * 검색 질의를 OpenAI Embeddings API로 변환한다.
+ * EmbeddingModel·모델·차원을 사용해야 저장된 document_chunk.embedding과 의미 있는 유사도 비교가 가능하다.
+ * 재시도·타임아웃은 openai-java SDK가 spring.ai.openai.max-retries timeout 기본값을 따른다.
  */
 @Component
 class EmbeddingClient(
-    private val embeddingRestClient: RestClient,
+    private val embeddingModel: EmbeddingModel,
+    private val searchProperties: SearchProperties,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun embed(text: String): List<Float> {
-        val response = try {
-            embeddingRestClient.post()
-                .uri("/embed")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(EmbedRequest(texts = listOf(text)))
-                .retrieve()
-                .body<EmbedResponse>()
-        } catch (ex: RestClientException) {
-            log.warn("임베딩 서버 호출 실패", ex)
-            throw BusinessException(ErrorCode.UPSTREAM_ERROR)
+        val vector = try {
+            embeddingModel.embed(text)
+        } catch (ex: OpenAIException) {
+            log.warn("OpenAI 임베딩 호출 실패", ex)
+            throw upstreamError()
         }
 
-        val vector = response?.vectors?.firstOrNull()
-        if (vector.isNullOrEmpty()) {
-            throw BusinessException(ErrorCode.UPSTREAM_ERROR, "임베딩 응답이 비어 있습니다.")
+        if (vector.isEmpty()) {
+            log.warn("OpenAI 임베딩 응답이 비어 있습니다.")
+            throw upstreamError()
         }
-        return vector
+        if (vector.size != searchProperties.embedding.dimensions) {
+            log.warn(
+                "OpenAI 임베딩 차원이 일치하지 않습니다. expected={}, actual={}",
+                searchProperties.embedding.dimensions,
+                vector.size,
+            )
+            throw upstreamError()
+        }
+        return vector.toList()
     }
+
+    private fun upstreamError() = BusinessException(ErrorCode.UPSTREAM_ERROR)
 }

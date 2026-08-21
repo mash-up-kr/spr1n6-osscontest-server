@@ -6,23 +6,8 @@ import com.osscontest.server.common.storage.ObjectStorage
 import com.osscontest.server.common.trace.TraceId
 import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.common.web.PageResponse
-import com.osscontest.server.document.api.DocumentSummary
-import com.osscontest.server.document.api.DocumentTitleResponse
-import com.osscontest.server.document.api.DocumentUploadResponse
-import com.osscontest.server.document.api.DocumentVersionDetailResponse
-import com.osscontest.server.document.api.DocumentVersionSummary
-import com.osscontest.server.document.api.IndexingRetryResponse
-import com.osscontest.server.document.api.IndexingStatusResponse
-import com.osscontest.server.document.api.IndexingProgress
-import com.osscontest.server.document.api.ListDocumentVersionsRequest
-import com.osscontest.server.document.api.ListDocumentsRequest
-import com.osscontest.server.document.api.SearchableVersionResponse
-import com.osscontest.server.document.domain.Document
-import com.osscontest.server.document.domain.DocumentAccessScope
-import com.osscontest.server.document.domain.DocumentVersion
-import com.osscontest.server.document.domain.Permission
-import com.osscontest.server.document.domain.PrincipalType
-import com.osscontest.server.document.domain.UploadFileType
+import com.osscontest.server.document.api.*
+import com.osscontest.server.document.domain.*
 import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
@@ -43,8 +28,7 @@ import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.Base64
-import java.util.UUID
+import java.util.*
 
 @Service
 class DocumentService(
@@ -243,6 +227,7 @@ class DocumentService(
         return IndexingStatusResponse(
             versionNo = version.versionNo,
             status = indexing.status,
+            phase = indexing.phase,
             attemptCount = indexing.attemptCount,
             chunkCount = version.chunkCount,
             startedAt = indexing.startedAt,
@@ -317,7 +302,7 @@ class DocumentService(
 
     private fun objectKey(document: Document, versionNo: Long, fileType: UploadFileType): String =
         "tenants/${document.tenant.id}/documents/${document.id}/versions/$versionNo/" +
-            "${UUID.randomUUID()}.${fileType.extensions.first()}"
+                "${UUID.randomUUID()}.${fileType.extensions.first()}"
 
     private fun resolveFileType(file: MultipartFile): UploadFileType {
         if (file.isEmpty) {
@@ -457,8 +442,9 @@ class DocumentService(
         val latestEventByVersionId = latestIndexingRequestedEventByVersionId(versionIds)
         if (latestEventByVersionId.isEmpty()) return emptyMap()
 
-        val jobBySourceEventId = indexingJobRepository.findBySourceEventIdIn(latestEventByVersionId.values.map { it.id })
-            .associateBy { it.sourceEventId }
+        val jobBySourceEventId =
+            indexingJobRepository.findBySourceEventIdIn(latestEventByVersionId.values.map { it.id })
+                .associateBy { it.sourceEventId }
 
         return latestEventByVersionId.mapValues { (_, event) ->
             jobBySourceEventId[event.id]?.toIndexingState() ?: event.toPendingIndexingState()
@@ -502,6 +488,7 @@ class DocumentService(
 
     private data class IndexingState(
         val status: IndexingStatus,
+        val phase: String? = null,
         val attemptCount: Int = 0,
         val startedAt: Instant? = null,
         val completedAt: Instant? = null,
@@ -523,6 +510,7 @@ class DocumentService(
     private fun IndexingJob.toIndexingState(): IndexingState =
         IndexingState(
             status = status,
+            phase = phase,
             attemptCount = attemptCount,
             startedAt = startedAt,
             completedAt = completedAt,

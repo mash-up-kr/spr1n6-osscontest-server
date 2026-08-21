@@ -12,6 +12,17 @@ spring:
       connection-init-sql: "SELECT set_config('app.encryption_key', '${DB_ENCRYPTION_KEY}', false)"
   jpa:
     open-in-view: false
+  ai:
+    model:
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      timeout: 5s
+      max-retries: 2
+      embedding:
+        model: text-embedding-3-small
+        dimensions: 1536
+        encoding-format: float
 
 logging:
   pattern:
@@ -21,12 +32,10 @@ logging:
 server:
   tomcat:
     max-swallow-size: -1
-    
+
 search:
   default-top-k: 10
   max-top-k: 50
   max-context-window: 5
   embedding:
-    base-url: http://localhost:8081
-    connect-timeout-ms: 2000
-    read-timeout-ms: 5000
+    dimensions: 1536

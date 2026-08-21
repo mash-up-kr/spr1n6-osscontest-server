@@ -1,16 +1,9 @@
 package com.osscontest.server.indexing.domain
 
 import com.osscontest.server.common.domain.BaseTimeEntity
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 /** Worker 소유. API 서버는 읽기 전용. source_event_id 에 FK 없음. */
 @Entity
@@ -30,7 +23,7 @@ class IndexingJob(
     @Column(name = "status", nullable = false, length = 30)
     var status: IndexingStatus,
 
-) : BaseTimeEntity() {
+    ) : BaseTimeEntity() {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,6 +47,9 @@ class IndexingJob(
 
     @Column(name = "trace_id", length = 255)
     var traceId: String? = null
+
+    @Column(name = "phase")
+    var phase: String? = null
 
     @Column(name = "started_at")
     var startedAt: Instant? = null
