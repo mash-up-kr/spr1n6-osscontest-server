@@ -13,7 +13,7 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.transaction.annotation.Transactional
 
-/** 인증 컨텍스트 주입과 에러 응답 규약을 확인한다. 실제 엔드포인트는 아직 없어 시험용 컨트롤러를 쓴다. */
+/** 인증 컨텍스트 주입과 에러 응답 규약을 확인한다. 도메인 로직과 섞이지 않도록 시험용 컨트롤러를 쓴다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional

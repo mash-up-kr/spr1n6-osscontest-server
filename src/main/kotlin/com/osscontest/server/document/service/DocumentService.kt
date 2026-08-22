@@ -7,8 +7,22 @@ import com.osscontest.server.common.trace.DbTraceIdBinder
 import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.common.web.Cursor
 import com.osscontest.server.common.web.PageResponse
-import com.osscontest.server.document.api.*
-import com.osscontest.server.document.domain.*
+import com.osscontest.server.document.api.DocumentSummary
+import com.osscontest.server.document.api.DocumentTitleResponse
+import com.osscontest.server.document.api.DocumentUploadResponse
+import com.osscontest.server.document.api.DocumentVersionDetailResponse
+import com.osscontest.server.document.api.DocumentVersionSummary
+import com.osscontest.server.document.api.IndexingProgress
+import com.osscontest.server.document.api.ListDocumentVersionsRequest
+import com.osscontest.server.document.api.ListDocumentsRequest
+import com.osscontest.server.document.api.SearchableVersionResponse
+import com.osscontest.server.document.domain.Document
+import com.osscontest.server.document.domain.DocumentAccessScope
+import com.osscontest.server.document.domain.DocumentVersion
+import com.osscontest.server.document.domain.IndexingStatus
+import com.osscontest.server.document.domain.Permission
+import com.osscontest.server.document.domain.PrincipalType
+import com.osscontest.server.document.domain.UploadFileType
 import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
@@ -20,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile
 import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 
 @Service
 class DocumentService(
