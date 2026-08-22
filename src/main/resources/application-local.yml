@@ -18,8 +18,8 @@ spring:
         format_sql: true
 
 storage:
-  endpoint: http://localhost:9000
-  region: ap-northeast-2
-  access-key: aidocs
-  secret-key: aidocs1234
-  bucket: aidocs-documents
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  region: ${STORAGE_REGION:ap-northeast-2}
+  access-key: ${STORAGE_ACCESS_KEY:aidocs}
+  secret-key: ${STORAGE_SECRET_KEY:aidocs1234}
+  bucket: ${STORAGE_BUCKET:aidocs-documents}

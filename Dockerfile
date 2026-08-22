@@ -19,5 +19,9 @@ RUN addgroup -S app && adduser -S -G app app
 COPY --from=build --chown=app:app /build/build/libs/*.jar app.jar
 USER app
 
+# application.yml 의 기본 프로필이 local 이라 지정하지 않으면 배포 이미지가 localhost 를 바라본다.
+# 컴포즈나 배포 매니페스트에서 덮어쓴다.
+ENV SPRING_PROFILES_ACTIVE=dev
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
