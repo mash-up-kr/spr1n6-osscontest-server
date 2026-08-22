@@ -2,7 +2,6 @@ package com.osscontest.server
 
 import com.osscontest.server.document.domain.*
 import com.osscontest.server.indexing.domain.IndexingJob
-import com.osscontest.server.indexing.domain.IndexingStatus
 import com.osscontest.server.outbox.domain.OutboxEvent
 import com.osscontest.server.outbox.domain.OutboxEventType
 import com.osscontest.server.outbox.domain.OutboxStatus

@@ -1,7 +1,6 @@
 package com.osscontest.server.document.api
 
-import com.osscontest.server.indexing.api.IndexingProgress
-import com.osscontest.server.indexing.domain.IndexingStatus
+import com.osscontest.server.document.domain.IndexingStatus
 import java.time.Instant
 
 data class DocumentUploadResponse(

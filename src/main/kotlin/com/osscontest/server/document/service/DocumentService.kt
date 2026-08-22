@@ -11,9 +11,6 @@ import com.osscontest.server.document.domain.*
 import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
-import com.osscontest.server.indexing.api.IndexingProgress
-import com.osscontest.server.indexing.domain.IndexingStatus
-import com.osscontest.server.indexing.service.IndexingService
 import com.osscontest.server.tenant.repository.TenantRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -32,7 +29,7 @@ class DocumentService(
     private val objectStorage: ObjectStorage,
     private val documentAccessChecker: DocumentAccessChecker,
     private val documentAccessScopeRepository: DocumentAccessScopeRepository,
-    private val indexingService: IndexingService,
+    private val indexingStatusReader: IndexingStatusReader,
     private val dbTraceIdBinder: DbTraceIdBinder,
 ) {
 
@@ -191,7 +188,7 @@ class DocumentService(
             mimeType = version.mimeType,
             fileSize = version.fileSize,
             uploadedAt = version.createdAt!!,
-            indexing = IndexingProgress(indexingService.statusOf(version)),
+            indexing = IndexingProgress(indexingStatusReader.statusOf(version)),
             searchable = document.searchableVersionId == version.id,
             sourceMetadata = version.sourceMetadata,
             extractedMetadata = version.extractedMetadata,
@@ -378,13 +375,13 @@ class DocumentService(
         return DocumentSummaryContext(
             latestVersionByDocumentId = latestVersionByDocumentId,
             searchableVersionNoByVersionId = searchableVersionNoByVersionId,
-            indexingStatusByVersionId = indexingService.statusByVersionId(latestVersions.mapNotNull { it.id }),
+            indexingStatusByVersionId = indexingStatusReader.statusByVersionId(latestVersions.mapNotNull { it.id }),
         )
     }
 
     private fun versionSummaryContext(versions: List<DocumentVersion>): VersionSummaryContext =
         VersionSummaryContext(
-            indexingService.statusByVersionId(versions.mapNotNull { it.id }),
+            indexingStatusReader.statusByVersionId(versions.mapNotNull { it.id }),
         )
 
     private fun DocumentVersion.toVersionSummary(

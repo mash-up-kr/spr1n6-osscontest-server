@@ -4,15 +4,16 @@ import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.trace.TraceId
 import com.osscontest.server.common.web.AuthContext
+import com.osscontest.server.document.api.IndexingProgress
 import com.osscontest.server.document.domain.Document
 import com.osscontest.server.document.domain.DocumentVersion
+import com.osscontest.server.document.domain.IndexingStatus
 import com.osscontest.server.document.repository.DocumentVersionRepository
 import com.osscontest.server.document.service.DocumentAccessChecker
-import com.osscontest.server.indexing.api.IndexingProgress
+import com.osscontest.server.document.service.IndexingStatusReader
 import com.osscontest.server.indexing.api.IndexingRetryResponse
 import com.osscontest.server.indexing.api.IndexingStatusResponse
 import com.osscontest.server.indexing.domain.IndexingJob
-import com.osscontest.server.indexing.domain.IndexingStatus
 import com.osscontest.server.indexing.repository.IndexingJobRepository
 import com.osscontest.server.outbox.domain.OutboxEvent
 import com.osscontest.server.outbox.domain.OutboxEventType
@@ -38,7 +39,7 @@ class IndexingService(
     private val documentVersionRepository: DocumentVersionRepository,
     private val documentAccessChecker: DocumentAccessChecker,
     private val outboxService: OutboxService,
-) {
+) : IndexingStatusReader {
 
     @Transactional(readOnly = true)
     fun getStatus(authContext: AuthContext, documentId: Long, versionNo: Long): IndexingStatusResponse {
@@ -80,13 +81,12 @@ class IndexingService(
         )
     }
 
-    /** 문서·버전 목록에 붙일 상태. 버전 수와 무관하게 이벤트와 잡을 한 번씩만 조회한다. */
     @Transactional(readOnly = true)
-    fun statusByVersionId(versionIds: Collection<Long>): Map<Long?, IndexingStatus> =
+    override fun statusByVersionId(versionIds: Collection<Long>): Map<Long?, IndexingStatus> =
         stateByVersionId(versionIds).mapValues { it.value.status }
 
     @Transactional(readOnly = true)
-    fun statusOf(version: DocumentVersion): IndexingStatus = state(version).status
+    override fun statusOf(version: DocumentVersion): IndexingStatus = state(version).status
 
     private fun findVersion(document: Document, versionNo: Long): DocumentVersion =
         documentVersionRepository.findByDocumentIdAndVersionNo(document.id!!, versionNo)
