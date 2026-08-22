@@ -83,6 +83,7 @@ class DocumentService(
         val versionNo = document.latestUploadVersionNo + 1
         document.latestUploadVersionNo = versionNo
 
+        // 중복 판정에 쓸 해시가 저장 전에 필요해 여기서 먼저 올린다. saveVersion 은 결과를 넘겨받아 다시 올리지 않는다.
         val stored = upload(document, versionNo, file, fileType)
         val duplicateOfVersionNo =
             documentVersionRepository.findEarliestVersionNoByContentHash(documentId, stored.contentHash)
@@ -107,6 +108,8 @@ class DocumentService(
         val items = mutableListOf<DocumentSummary>()
         var nextCursor: String? = null
 
+        // 인덱싱 상태와 검색 가능 여부는 다른 테이블을 조합해야 나오는 값이라 SQL 로 거르지 못한다.
+        // 페이지를 읽어 애플리케이션에서 걸러내고, limit 을 채울 때까지 다음 페이지로 넘어간다.
         while (items.size <= request.limit) {
             val documents = findDocumentPage(authContext, cursorId, request.q)
             if (documents.isEmpty()) break
@@ -118,6 +121,8 @@ class DocumentService(
                 if (request.searchable != null && (summary.searchableVersionNo != null) != request.searchable) continue
 
                 items += summary
+
+                // limit 을 한 건 넘겼다는 것은 다음 페이지가 있다는 뜻이다. 마지막으로 담을 항목의 id 가 다음 커서가 된다.
                 if (items.size > request.limit) {
                     nextCursor = Cursor.encode(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
                     break
@@ -364,7 +369,9 @@ class DocumentService(
         )
     }
 
+    /** 목록 한 페이지에 붙일 부가 정보를 문서 수와 무관하게 세 번의 조회로 모은다. */
     private fun summaryContext(documents: List<Document>): DocumentSummaryContext {
+        // 최신 버전 조회
         val documentIds = documents.mapNotNull { it.id }
         val latestVersionNos = documents.map { it.latestUploadVersionNo }.filter { it > 0 }.toSet()
         val latestVersions = if (documentIds.isEmpty() || latestVersionNos.isEmpty()) {
@@ -379,6 +386,7 @@ class DocumentService(
                 }
             }
             .associateBy { it.document.id }
+        // 검색 대상 버전의 번호 조회
         val searchableVersionIds = documents.mapNotNull { it.searchableVersionId }.toSet()
         val searchableVersionNoByVersionId = if (searchableVersionIds.isEmpty()) {
             emptyMap()
@@ -431,6 +439,7 @@ class DocumentService(
 
     companion object {
         private const val FIRST_VERSION_NO = 1L
+        /** 요청 limit 의 상한(ListDocumentsRequest 의 @Max) 100 에 다음 페이지 존재 확인용 한 건을 더한 값. */
         private const val PAGE_SCAN_SIZE = 101
         private const val DOCUMENT_CURSOR_FIELD = "id"
         private const val VERSION_CURSOR_FIELD = "versionNo"

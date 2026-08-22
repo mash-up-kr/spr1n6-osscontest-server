@@ -10,6 +10,8 @@ class DbTraceIdBinder(
 ) {
 
     fun bind() {
+        // 추적 ID 는 요청 필터가 넣는다. HTTP 요청 밖(테스트·배치)에서는 없는 것이 정상이라 그냥 넘어간다.
+        // 이때 트리거가 만드는 Outbox 행의 trace_id 는 NULL 이 된다.
         val traceId = TraceId.current() ?: return
 
         entityManager.createNativeQuery("SELECT set_config('app.trace_id', :traceId, true)")
