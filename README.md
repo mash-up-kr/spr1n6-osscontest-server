@@ -39,13 +39,13 @@
 Docker로 PostgreSQL 17.8과 MinIO 컨테이너를 띄우고 애플리케이션이 여기에 접속합니다. 과제 환경과 동일한 버전으로 고정되어 있습니다.
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.local.yml up -d
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
 원본 파일은 MinIO에 저장합니다. 컨테이너가 뜰 때 `aidocs-documents` 버킷이 함께 만들어지므로 별도 준비가 필요 없고, `http://localhost:9001` 콘솔에서 확인할 수 있습니다.
 
-DB와 MinIO에 직접 붙어볼 때 쓰는 계정과 포트는 `docker-compose.yml`에 있습니다.
+DB와 MinIO에 직접 붙어볼 때 쓰는 계정과 포트는 `docker-compose.local.yml`에 있습니다.
 
 ### dev
 
@@ -95,10 +95,10 @@ dev 환경의 컨테이너는 별도 파일로 띄웁니다.
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| 파일                       | 용도     | 담긴 것              |
-|--------------------------|--------|-------------------|
-| `docker-compose.yml`     | 로컬 개발  | PostgreSQL, MinIO |
-| `docker-compose.dev.yml` | dev 환경 | MinIO             |
+| 파일                            | 용도     | 담긴 것              |
+|-------------------------------|--------|-------------------|
+| `docker-compose.local.yml`    | 로컬 개발  | PostgreSQL, MinIO |
+| `docker-compose.dev.yml`      | dev 환경 | MinIO             |
 
 dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는 앱과 같은 `.env`에서 읽고, 값이 없으면 컨테이너가 뜨지 않습니다. 앱과 릴레이, 카프카, 워커는 각 이미지가 준비되면 이
 파일에 추가합니다.
