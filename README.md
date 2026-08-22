@@ -107,15 +107,17 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 
 ## 프로파일 구성
 
-`local`과 `dev`는 DB 위치와 마이그레이션 실행 방식만 다릅니다. 애플리케이션 코드는 동일합니다.
+`local`과 `dev`는 DB 위치, 마이그레이션 실행 방식, 암호화 알고리즘이 다릅니다. 애플리케이션 코드는 동일합니다.
 
-| 항목     | `local`                 | `dev`                 |
-|--------|-------------------------|-----------------------|
-| DB     | Docker PostgreSQL 17.8  | 리모트 Tmax OpenSQL v3.0 |
-| 접속 경로  | 직접                      | SSH 터널                |
-| 접속 정보  | `application-local.yml` | `.env`                |
-| SQL 로깅 | ON                      | OFF                   |
-| Flyway | 기동 시 자동 실행              | 수동 실행                 |
+| 항목        | `local`                 | `dev`                 |
+|-----------|-------------------------|-----------------------|
+| DB        | Docker PostgreSQL 17.8  | 리모트 Tmax OpenSQL v3.0 |
+| 접속 경로     | 직접                      | SSH 터널                |
+| 접속 정보     | `application-local.yml` | `.env`                |
+| 암호화 알고리즘  | AES-256                 | ARIA-256              |
+| CORS 허용   | `application-local.yml` | `.env`                |
+| SQL 로깅    | ON                      | OFF                   |
+| Flyway    | 기동 시 자동 실행              | 수동 실행                 |
 
 ---
 
@@ -144,6 +146,8 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 | `STORAGE_SECRET_KEY` | O  | 시크릿 키                                                       |
 | `STORAGE_BUCKET`     | O  | 원본 파일을 담을 버킷                                                |
 | `OPENAI_API_KEY`     | O  | 검색 질의를 `text-embedding-3-small` 1536차원 벡터로 변환할 OpenAI API 키 |
+| `CORS_ALLOWED_ORIGINS` | O  | CORS 를 허용할 origin. 쉼표로 여러 개를 넘긴다. 값이 없으면 앱이 뜨지 않는다      |
+| `DB_ENCRYPTION_CIPHER` | X  | 암호화 알고리즘 (기본 `aria256`). ARIA 를 못 쓰는 환경에서만 `aes256` 으로 바꾼다 |
 
 `.env`와 실제 접속 정보, pem 파일은 커밋하지 않습니다.
 
@@ -152,11 +156,15 @@ dev DB는 리모트 Tmax OpenSQL이라 compose에 없습니다. 접속 정보는
 없으므로 운영 중에는 동일한 값을 안전하게 보관하고 모든 애플리케이션 인스턴스에
 동일하게 설정해야 합니다.
 
-`app_user.name`과 `document_version.original_filename`은 Tmax OpenCrypto 1.0의
-ARIA-256으로 암호화합니다. DB에는 ARIA를 지원하는 `opencrypto` 확장이 사전에 설치되어
-있어야 합니다. 암호문에 알고리즘 정보가 포함되므로 `app_decrypt`는 전환 전에 저장된
-AES-256 암호문도 계속 복호화할 수 있으며, 전환 후 새로 저장하거나 갱신한 값부터
-ARIA-256 암호문으로 저장됩니다.
+`app_user.name`과 `document_version.original_filename`은 암호화해 저장합니다. 알고리즘은
+`app.encryption_cipher` 세션 설정으로 정하고, 지정하지 않으면 ARIA-256을 씁니다.
+
+ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 PostgreSQL의 `pgcrypto`에는
+없으므로 `local`은 AES-256을 씁니다. 로컬 컨테이너의 `pgcrypto`는 `scripts/local-db/00-extensions.sql`이
+설치합니다. dev DB에는 `opencrypto` 확장이 사전에 설치되어 있어야 합니다.
+
+암호문에 알고리즘 정보가 들어 있어 `app_decrypt`는 어느 쪽으로 저장된 값이든 복호화합니다.
+ARIA 전환 전에 저장된 AES-256 암호문도 그대로 읽힙니다.
 
 ---
 
