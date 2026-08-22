@@ -1,6 +1,7 @@
 package com.osscontest.server.indexing.domain
 
 import com.osscontest.server.common.domain.BaseTimeEntity
+import com.osscontest.server.document.domain.IndexingStatus
 import jakarta.persistence.*
 import java.time.Instant
 import java.util.*

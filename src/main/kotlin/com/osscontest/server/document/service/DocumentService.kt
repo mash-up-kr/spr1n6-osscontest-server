@@ -3,23 +3,16 @@ package com.osscontest.server.document.service
 import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.storage.ObjectStorage
-import com.osscontest.server.common.trace.TraceId
+import com.osscontest.server.common.trace.DbTraceIdBinder
 import com.osscontest.server.common.web.AuthContext
+import com.osscontest.server.common.web.Cursor
 import com.osscontest.server.common.web.PageResponse
 import com.osscontest.server.document.api.*
 import com.osscontest.server.document.domain.*
 import com.osscontest.server.document.repository.DocumentAccessScopeRepository
 import com.osscontest.server.document.repository.DocumentRepository
 import com.osscontest.server.document.repository.DocumentVersionRepository
-import com.osscontest.server.indexing.domain.IndexingJob
-import com.osscontest.server.indexing.domain.IndexingStatus
-import com.osscontest.server.indexing.repository.IndexingJobRepository
-import com.osscontest.server.outbox.domain.OutboxEvent
-import com.osscontest.server.outbox.domain.OutboxEventType
-import com.osscontest.server.outbox.domain.OutboxStatus
-import com.osscontest.server.outbox.repository.OutboxEventRepository
 import com.osscontest.server.tenant.repository.TenantRepository
-import jakarta.persistence.EntityManager
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -27,26 +20,24 @@ import org.springframework.web.multipart.MultipartFile
 import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.*
 
 @Service
 class DocumentService(
     private val documentRepository: DocumentRepository,
     private val documentVersionRepository: DocumentVersionRepository,
-    private val indexingJobRepository: IndexingJobRepository,
-    private val outboxEventRepository: OutboxEventRepository,
     private val tenantRepository: TenantRepository,
     private val objectStorage: ObjectStorage,
-    private val entityManager: EntityManager,
     private val documentAccessChecker: DocumentAccessChecker,
     private val documentAccessScopeRepository: DocumentAccessScopeRepository,
+    private val indexingStatusReader: IndexingStatusReader,
+    private val dbTraceIdBinder: DbTraceIdBinder,
 ) {
 
     @Transactional
     fun createDocument(authContext: AuthContext, file: MultipartFile, title: String?): DocumentUploadResponse {
         val fileType = resolveFileType(file)
-        passTraceIdToTrigger()
+        dbTraceIdBinder.bind()
 
         val document = Document(
             tenant = tenantRepository.getReferenceById(authContext.tenantId),
@@ -71,7 +62,7 @@ class DocumentService(
     @Transactional
     fun addVersion(authContext: AuthContext, documentId: Long, file: MultipartFile): DocumentUploadResponse {
         val fileType = resolveFileType(file)
-        passTraceIdToTrigger()
+        dbTraceIdBinder.bind()
 
         val document = findWritableDocumentForUpdate(authContext, documentId)
 
@@ -98,7 +89,7 @@ class DocumentService(
         request: ListDocumentsRequest,
     ): PageResponse<DocumentSummary> {
         val requestedStatus = request.indexingStatus?.let { parseIndexingStatus(it) }
-        var cursorId = decodeCursor(request.cursor, DOCUMENT_CURSOR_FIELD)
+        var cursorId = Cursor.decode(request.cursor, DOCUMENT_CURSOR_FIELD)
         val items = mutableListOf<DocumentSummary>()
         var nextCursor: String? = null
 
@@ -114,7 +105,7 @@ class DocumentService(
 
                 items += summary
                 if (items.size > request.limit) {
-                    nextCursor = encodeCursor(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
+                    nextCursor = Cursor.encode(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
                     break
                 }
             }
@@ -144,7 +135,7 @@ class DocumentService(
     fun deleteDocument(authContext: AuthContext, documentId: Long) {
         val document = findWritableDocumentForUpdate(authContext, documentId)
 
-        passTraceIdToTrigger()
+        dbTraceIdBinder.bind()
         document.deletedAt = Instant.now()
     }
 
@@ -175,13 +166,13 @@ class DocumentService(
         val document = findReadableDocument(authContext, documentId)
         val versions = documentVersionRepository.findPageByDocumentId(
             documentId = document.id!!,
-            cursorVersionNo = decodeCursor(request.cursor, VERSION_CURSOR_FIELD),
+            cursorVersionNo = Cursor.decode(request.cursor, VERSION_CURSOR_FIELD),
             pageable = PageRequest.of(0, request.limit + 1),
         )
         val versionContext = versionSummaryContext(versions)
         val items = versions.take(request.limit).map { it.toVersionSummary(document, versionContext) }
         val nextCursor = versions.getOrNull(request.limit)?.let {
-            encodeCursor(VERSION_CURSOR_FIELD, items.last().versionNo)
+            Cursor.encode(VERSION_CURSOR_FIELD, items.last().versionNo)
         }
 
         return PageResponse(items = items, nextCursor = nextCursor)
@@ -198,7 +189,7 @@ class DocumentService(
             mimeType = version.mimeType,
             fileSize = version.fileSize,
             uploadedAt = version.createdAt!!,
-            indexing = IndexingProgress(indexingStatus(version)),
+            indexing = IndexingProgress(indexingStatusReader.statusOf(version)),
             searchable = document.searchableVersionId == version.id,
             sourceMetadata = version.sourceMetadata,
             extractedMetadata = version.extractedMetadata,
@@ -215,47 +206,6 @@ class DocumentService(
             mimeType = version.mimeType,
             fileSize = version.fileSize,
             content = objectStorage.get(version.sourceObjectKey),
-        )
-    }
-
-    @Transactional(readOnly = true)
-    fun getIndexingStatus(authContext: AuthContext, documentId: Long, versionNo: Long): IndexingStatusResponse {
-        val document = findReadableDocument(authContext, documentId)
-        val version = findVersion(document, versionNo)
-        val indexing = indexingState(version)
-
-        return IndexingStatusResponse(
-            versionNo = version.versionNo,
-            status = indexing.status,
-            phase = indexing.phase,
-            attemptCount = indexing.attemptCount,
-            chunkCount = version.chunkCount,
-            startedAt = indexing.startedAt,
-            completedAt = indexing.completedAt,
-            lastErrorMessage = indexing.lastErrorMessage,
-        )
-    }
-
-    @Transactional
-    fun retryIndexing(authContext: AuthContext, documentId: Long, versionNo: Long): IndexingRetryResponse {
-        val document = findWritableDocumentForUpdate(authContext, documentId)
-        val version = findVersion(document, versionNo)
-        val latestEvent = latestIndexingRequestedEvent(version)
-        val job = latestEvent?.let { indexingJobRepository.findBySourceEventId(it.id) }
-
-        if (job?.status != IndexingStatus.FAILED) {
-            throw BusinessException(ErrorCode.INDEXING_RETRY_NOT_ALLOWED)
-        }
-        if (hasPendingRetryEvent(version)) {
-            throw BusinessException(ErrorCode.INDEXING_RETRY_ALREADY_REQUESTED)
-        }
-
-        val event = createRetryOutboxEvent(document, version, job.sourceEventId)
-        notifyOutboxEvent(event.id)
-
-        return IndexingRetryResponse(
-            versionNo = version.versionNo,
-            indexing = IndexingProgress(IndexingStatus.PENDING),
         )
     }
 
@@ -426,41 +376,14 @@ class DocumentService(
         return DocumentSummaryContext(
             latestVersionByDocumentId = latestVersionByDocumentId,
             searchableVersionNoByVersionId = searchableVersionNoByVersionId,
-            indexingStatusByVersionId = indexingStateByVersionId(latestVersions.mapNotNull { it.id })
-                .mapValues { it.value.status },
+            indexingStatusByVersionId = indexingStatusReader.statusByVersionId(latestVersions.mapNotNull { it.id }),
         )
     }
 
     private fun versionSummaryContext(versions: List<DocumentVersion>): VersionSummaryContext =
         VersionSummaryContext(
-            indexingStateByVersionId(versions.mapNotNull { it.id }).mapValues { it.value.status },
+            indexingStatusReader.statusByVersionId(versions.mapNotNull { it.id }),
         )
-
-    private fun indexingStateByVersionId(versionIds: Collection<Long>): Map<Long?, IndexingState> {
-        if (versionIds.isEmpty()) return emptyMap()
-
-        val latestEventByVersionId = latestIndexingRequestedEventByVersionId(versionIds)
-        if (latestEventByVersionId.isEmpty()) return emptyMap()
-
-        val jobBySourceEventId =
-            indexingJobRepository.findBySourceEventIdIn(latestEventByVersionId.values.map { it.id })
-                .associateBy { it.sourceEventId }
-
-        return latestEventByVersionId.mapValues { (_, event) ->
-            jobBySourceEventId[event.id]?.toIndexingState() ?: event.toPendingIndexingState()
-        }
-    }
-
-    private fun latestIndexingRequestedEventByVersionId(versionIds: Collection<Long>): Map<Long?, OutboxEvent> =
-        outboxEventRepository.findByDocumentVersionIdInAndEventType(
-            documentVersionIds = versionIds,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-        )
-            .groupBy { it.documentVersionId }
-            .mapValues { (_, events) -> events.latestByCreatedAt() }
-
-    private fun List<OutboxEvent>.latestByCreatedAt(): OutboxEvent =
-        maxWith(compareBy<OutboxEvent> { it.createdAt }.thenBy { it.id })
 
     private fun DocumentVersion.toVersionSummary(
         document: Document,
@@ -486,126 +409,9 @@ class DocumentService(
         val indexingStatusByVersionId: Map<Long?, IndexingStatus>,
     )
 
-    private data class IndexingState(
-        val status: IndexingStatus,
-        val phase: String? = null,
-        val attemptCount: Int = 0,
-        val startedAt: Instant? = null,
-        val completedAt: Instant? = null,
-        val lastErrorMessage: String? = null,
-    )
-
-    private fun indexingStatus(version: DocumentVersion): IndexingStatus =
-        indexingState(version).status
-
-    private fun indexingState(version: DocumentVersion): IndexingState {
-        val latestEvent = latestIndexingRequestedEvent(version)
-        val job = latestEvent?.let { indexingJobRepository.findBySourceEventId(it.id) }
-
-        return job?.toIndexingState()
-            ?: latestEvent?.toPendingIndexingState()
-            ?: IndexingState(status = IndexingStatus.PENDING)
-    }
-
-    private fun IndexingJob.toIndexingState(): IndexingState =
-        IndexingState(
-            status = status,
-            phase = phase,
-            attemptCount = attemptCount,
-            startedAt = startedAt,
-            completedAt = completedAt,
-            lastErrorMessage = lastErrorMessage,
-        )
-
-    private fun OutboxEvent.toPendingIndexingState(): IndexingState =
-        IndexingState(
-            status = IndexingStatus.PENDING,
-            lastErrorMessage = when {
-                status == OutboxStatus.DEAD -> lastErrorMessage
-                status == OutboxStatus.PENDING && publishAttemptCount > 0 -> lastErrorMessage
-                else -> null
-            },
-        )
-
     private fun parseIndexingStatus(value: String): IndexingStatus =
         runCatching { IndexingStatus.valueOf(value.uppercase()) }
             .getOrElse { throw BusinessException(ErrorCode.INVALID_REQUEST) }
-
-    private fun hasPendingRetryEvent(version: DocumentVersion): Boolean =
-        outboxEventRepository.existsRetryEvent(
-            documentVersionId = version.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-            statuses = listOf(OutboxStatus.PENDING, OutboxStatus.PUBLISHING),
-        )
-
-    private fun latestIndexingRequestedEvent(version: DocumentVersion): OutboxEvent? =
-        outboxEventRepository.findFirstByDocumentVersionIdAndEventTypeOrderByCreatedAtDesc(
-            documentVersionId = version.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-        )
-
-    private fun createRetryOutboxEvent(
-        document: Document,
-        version: DocumentVersion,
-        retryOfEventId: UUID,
-    ): OutboxEvent {
-        val now = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-        val event = OutboxEvent(
-            id = UUID.randomUUID(),
-            tenantId = document.tenant.id!!,
-            documentId = document.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-            payload = mapOf(
-                "tenantId" to document.tenant.id!!,
-                "versionNo" to version.versionNo,
-                "sourceObjectKey" to version.sourceObjectKey,
-                "mimeType" to version.mimeType,
-                "fileSize" to version.fileSize,
-                "contentHash" to version.contentHash,
-                "occurredAt" to now.toString(),
-            ),
-        )
-
-        event.documentVersionId = version.id
-        event.retryOfEventId = retryOfEventId
-        event.traceId = TraceId.current()
-        event.nextAttemptAt = now
-
-        return outboxEventRepository.saveAndFlush(event)
-    }
-
-    private fun notifyOutboxEvent(eventId: UUID) {
-        entityManager.createNativeQuery("SELECT pg_notify('outbox_event', :eventId)")
-            .setParameter("eventId", eventId.toString())
-            .singleResult
-    }
-
-    private fun encodeCursor(field: String, value: Long): String {
-        val json = """{"$field":$value}"""
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
-    }
-
-    private fun decodeCursor(cursor: String?, field: String): Long? {
-        if (cursor.isNullOrBlank()) return null
-
-        return runCatching {
-            val json = String(Base64.getUrlDecoder().decode(cursor))
-            val value = json.substringAfter("\"$field\":", missingDelimiterValue = "")
-                .substringBefore("}")
-                .trim()
-
-            value.toLong()
-        }.getOrElse { throw BusinessException(ErrorCode.INVALID_REQUEST) }
-    }
-
-    /** 트리거는 애플리케이션 컨텍스트를 못 보므로 트랜잭션 설정으로 넘긴다. */
-    private fun passTraceIdToTrigger() {
-        val traceId = TraceId.current() ?: return
-
-        entityManager.createNativeQuery("SELECT set_config('app.trace_id', :traceId, true)")
-            .setParameter("traceId", traceId)
-            .singleResult
-    }
 
     private data class StoredObject(val key: String, val contentHash: String)
 
