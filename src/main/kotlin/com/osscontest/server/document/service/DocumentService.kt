@@ -5,6 +5,7 @@ import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.storage.ObjectStorage
 import com.osscontest.server.common.trace.DbTraceIdBinder
 import com.osscontest.server.common.web.AuthContext
+import com.osscontest.server.common.web.Cursor
 import com.osscontest.server.common.web.PageResponse
 import com.osscontest.server.document.api.*
 import com.osscontest.server.document.domain.*
@@ -88,7 +89,7 @@ class DocumentService(
         request: ListDocumentsRequest,
     ): PageResponse<DocumentSummary> {
         val requestedStatus = request.indexingStatus?.let { parseIndexingStatus(it) }
-        var cursorId = decodeCursor(request.cursor, DOCUMENT_CURSOR_FIELD)
+        var cursorId = Cursor.decode(request.cursor, DOCUMENT_CURSOR_FIELD)
         val items = mutableListOf<DocumentSummary>()
         var nextCursor: String? = null
 
@@ -104,7 +105,7 @@ class DocumentService(
 
                 items += summary
                 if (items.size > request.limit) {
-                    nextCursor = encodeCursor(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
+                    nextCursor = Cursor.encode(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
                     break
                 }
             }
@@ -165,13 +166,13 @@ class DocumentService(
         val document = findReadableDocument(authContext, documentId)
         val versions = documentVersionRepository.findPageByDocumentId(
             documentId = document.id!!,
-            cursorVersionNo = decodeCursor(request.cursor, VERSION_CURSOR_FIELD),
+            cursorVersionNo = Cursor.decode(request.cursor, VERSION_CURSOR_FIELD),
             pageable = PageRequest.of(0, request.limit + 1),
         )
         val versionContext = versionSummaryContext(versions)
         val items = versions.take(request.limit).map { it.toVersionSummary(document, versionContext) }
         val nextCursor = versions.getOrNull(request.limit)?.let {
-            encodeCursor(VERSION_CURSOR_FIELD, items.last().versionNo)
+            Cursor.encode(VERSION_CURSOR_FIELD, items.last().versionNo)
         }
 
         return PageResponse(items = items, nextCursor = nextCursor)
@@ -411,24 +412,6 @@ class DocumentService(
     private fun parseIndexingStatus(value: String): IndexingStatus =
         runCatching { IndexingStatus.valueOf(value.uppercase()) }
             .getOrElse { throw BusinessException(ErrorCode.INVALID_REQUEST) }
-
-    private fun encodeCursor(field: String, value: Long): String {
-        val json = """{"$field":$value}"""
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
-    }
-
-    private fun decodeCursor(cursor: String?, field: String): Long? {
-        if (cursor.isNullOrBlank()) return null
-
-        return runCatching {
-            val json = String(Base64.getUrlDecoder().decode(cursor))
-            val value = json.substringAfter("\"$field\":", missingDelimiterValue = "")
-                .substringBefore("}")
-                .trim()
-
-            value.toLong()
-        }.getOrElse { throw BusinessException(ErrorCode.INVALID_REQUEST) }
-    }
 
     private data class StoredObject(val key: String, val contentHash: String)
 
