@@ -3,6 +3,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/aidocs
     username: aidocs
     password: aidocs
+    hikari:
+      # 로컬 전용 폐기 가능 키. dev·운영은 기본 설정이 DB_ENCRYPTION_KEY 환경변수를 요구한다.
+      connection-init-sql: "SELECT set_config('app.encryption_key', 'local-only-throwaway-key', false), set_config('app.encryption_cipher', 'aes256', false)"
   jpa:
     hibernate:
       ddl-auto: validate

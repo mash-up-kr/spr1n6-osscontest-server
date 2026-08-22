@@ -9,7 +9,8 @@ spring:
     default: local
   datasource:
     hikari:
-      connection-init-sql: "SELECT set_config('app.encryption_key', '${DB_ENCRYPTION_KEY}', false)"
+      # ARIA 는 Tmax OpenCrypto 확장에만 있어 로컬 pgcrypto 에서는 쓸 수 없다. local 프로필이 aes256 으로 덮는다.
+      connection-init-sql: "SELECT set_config('app.encryption_key', '${DB_ENCRYPTION_KEY}', false), set_config('app.encryption_cipher', '${DB_ENCRYPTION_CIPHER:aria256}', false)"
   jpa:
     open-in-view: false
   ai:
