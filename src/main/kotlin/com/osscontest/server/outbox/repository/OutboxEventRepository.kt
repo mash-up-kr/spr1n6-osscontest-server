@@ -9,11 +9,6 @@ import java.util.UUID
 
 interface OutboxEventRepository : JpaRepository<OutboxEvent, UUID> {
 
-    fun findFirstByDocumentVersionIdAndEventTypeOrderByCreatedAtDesc(
-        documentVersionId: Long,
-        eventType: OutboxEventType,
-    ): OutboxEvent?
-
     fun findByDocumentVersionIdInAndEventType(
         documentVersionIds: Collection<Long>,
         eventType: OutboxEventType,

@@ -124,14 +124,19 @@ class IndexingService(
             .groupBy { it.documentVersionId }
             .mapValues { (_, events) -> events.latestByCreatedAt() }
 
+    /**
+     * 최신 이벤트 선택 규칙. 단건 조회와 목록 조회가 이 하나만 쓴다.
+     *
+     * created_at 이 같을 때 SQL ORDER BY 와 메모리 정렬의 결과가 갈리므로
+     * (UUID 비교 기준이 Postgres 는 바이트열, 자바는 부호 있는 long 이라 다르다)
+     * 두 경로를 SQL 로 나눠 두지 않는다. id 로 거는 동점 처리는 시간 순서를 뜻하지 않고
+     * 두 API 가 같은 답을 내도록 고정하는 것이 목적이다.
+     */
     private fun List<OutboxEvent>.latestByCreatedAt(): OutboxEvent =
         maxWith(compareBy<OutboxEvent> { it.createdAt }.thenBy { it.id })
 
     private fun latestRequestedEvent(version: DocumentVersion): OutboxEvent? =
-        outboxEventRepository.findFirstByDocumentVersionIdAndEventTypeOrderByCreatedAtDesc(
-            documentVersionId = version.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-        )
+        latestRequestedEventByVersionId(listOf(version.id!!))[version.id]
 
     private fun hasPendingRetryEvent(version: DocumentVersion): Boolean =
         outboxEventRepository.existsRetryEvent(
