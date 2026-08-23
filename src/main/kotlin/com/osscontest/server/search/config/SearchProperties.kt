@@ -11,7 +11,10 @@ import org.springframework.stereotype.Component
 @ConfigurationProperties(prefix = "search")
 data class SearchProperties(
     var defaultTopK: Int = 10,
+    var minTopK: Int = 1,
     var maxTopK: Int = 50,
+    var defaultContextWindow: Int = 0,
+    var minContextWindow: Int = 0,
     var maxContextWindow: Int = 5,
     var minEfSearch: Int = 1,
     var maxEfSearch: Int = 500,

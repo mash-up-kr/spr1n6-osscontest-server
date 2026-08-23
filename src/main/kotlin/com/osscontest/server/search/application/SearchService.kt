@@ -29,9 +29,9 @@ class SearchService(
         }
 
         val topK = (request.topK ?: searchProperties.defaultTopK)
-            .coerceIn(1, searchProperties.maxTopK)
-        val contextWindow = (request.contextWindow ?: 0)
-            .coerceIn(0, searchProperties.maxContextWindow)
+            .coerceIn(searchProperties.minTopK, searchProperties.maxTopK)
+        val contextWindow = (request.contextWindow ?: searchProperties.defaultContextWindow)
+            .coerceIn(searchProperties.minContextWindow, searchProperties.maxContextWindow)
         val efSearch = (request.efSearch ?: DEFAULT_EF_SEARCH)
             .coerceIn(searchProperties.minEfSearch, searchProperties.maxEfSearch)
             // efSearch가 topK보다 작으면 HNSW가 후보를 topK개만큼 못 채워 에러 없이 결과가
