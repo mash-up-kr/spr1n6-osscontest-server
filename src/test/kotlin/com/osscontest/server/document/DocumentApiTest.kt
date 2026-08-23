@@ -1,5 +1,6 @@
 package com.osscontest.server.document
 
+import com.jayway.jsonpath.JsonPath
 import com.osscontest.server.common.storage.ObjectStorage
 import com.osscontest.server.common.storage.StorageProperties
 import com.osscontest.server.common.web.AuthContextArgumentResolver.Companion.USER_ID_HEADER
@@ -437,6 +438,45 @@ class DocumentApiTest {
     }
 
     @Test
+    fun `같은 시각의 이벤트가 둘이어도 목록과 상세의 인덱싱 상태가 같다`() {
+        val documentId = createDocument("동시 이벤트".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        val triggerEventId = latestOutboxId()
+
+        // 트리거가 만든 이벤트와 created_at 이 같은 두 번째 이벤트를 넣는다.
+        // 재인덱싱을 연달아 요청하면 실제로 생길 수 있는 상태다.
+        // UUID 는 자바 정렬에서 첫 이벤트보다 크도록 고정한다.
+        val siblingEventId = UUID.fromString("7fffffff-ffff-4fff-bfff-ffffffffffff")
+        insertSiblingIndexingEvent(siblingEventId, triggerEventId)
+
+        // 잡은 두 번째 이벤트에만 단다. 두 경로가 서로 다른 이벤트를 고르면 상태가 갈린다.
+        createIndexingJob(
+            sourceEventId = siblingEventId,
+            documentId = documentId,
+            versionId = versionId,
+            status = "COMPLETED",
+            attemptCount = 1,
+        )
+
+        val detailBody = mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+        val listBody = mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].id") { value(documentId) }
+        }.andReturn().response.contentAsString
+
+        val detailStatus = JsonPath.read<String>(detailBody, "$.status")
+        val listStatus = JsonPath.read<String>(listBody, "$.items[0].latestVersionIndexingStatus")
+
+        // 두 경로가 최신 이벤트를 다른 규칙으로 고르면 여기서 갈린다.
+        assertEquals(listStatus, detailStatus)
+    }
+
+    @Test
     fun `실패한 인덱싱 작업을 재시도한다`() {
         val documentId = createDocument("재인덱싱".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
@@ -647,6 +687,30 @@ class DocumentApiTest {
             .resultList
             .map { it as String }
             .toSet()
+
+    /** 이미 있는 이벤트와 created_at 이 같은 INDEXING_REQUESTED 이벤트를 하나 더 만든다. */
+    private fun insertSiblingIndexingEvent(newEventId: UUID, copyFromEventId: UUID) {
+        em.createNativeQuery(
+            """
+            INSERT INTO outbox_event (
+                id, tenant_id, document_id, document_version_id,
+                event_type, event_schema_version, payload,
+                status, publish_attempt_count, next_attempt_at, created_at
+            )
+            SELECT
+                :newEventId, tenant_id, document_id, document_version_id,
+                event_type, event_schema_version, payload,
+                status, publish_attempt_count, next_attempt_at, created_at
+            FROM outbox_event
+            WHERE id = :copyFromEventId
+            """.trimIndent(),
+        )
+            .setParameter("newEventId", newEventId)
+            .setParameter("copyFromEventId", copyFromEventId)
+            .executeUpdate()
+        em.flush()
+        em.clear()
+    }
 
     private fun createIndexingJob(
         sourceEventId: UUID,
