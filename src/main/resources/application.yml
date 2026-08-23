@@ -24,6 +24,12 @@ spring:
         model: text-embedding-3-small
         dimensions: 1536
         encoding-format: float
+    mcp:
+      server:
+        name: search-mcp-server
+        version: 0.0.1
+        # 기본값이 없어 명시하지 않으면 HTTP 엔드포인트 자체가 등록 안 된다.
+        protocol: STREAMABLE
 
 logging:
   pattern:

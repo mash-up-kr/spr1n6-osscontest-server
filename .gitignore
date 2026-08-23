@@ -9,6 +9,9 @@
 *.pem
 .ssh-tunnel.sock
 
+# 개인 MCP 클라이언트 설정 (X-Search-User-Id 등 개인 신원값 포함)
+.mcp.json
+
 ### Gradle ###
 .gradle/
 build/
