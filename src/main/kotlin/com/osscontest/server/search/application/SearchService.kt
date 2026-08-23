@@ -33,6 +33,8 @@ class SearchService(
             .coerceIn(0, searchProperties.maxContextWindow)
         val efSearch = (request.efSearch ?: DEFAULT_EF_SEARCH)
             .coerceIn(searchProperties.minEfSearch, searchProperties.maxEfSearch)
+            // efSearch가 topK보다 작으면 HNSW가 후보를 topK개만큼 못 채워 에러 없이 결과가
+            // topK개보다 적게 반환된다(실측 확인). 항상 topK 이상을 보장한다.
             .coerceAtLeast(topK)
 
         val queryEmbedding = embeddingClient.embed(query)
@@ -49,6 +51,7 @@ class SearchService(
     }
 
     companion object {
+        // 실제 데이터 규모에서 EXPLAIN ANALYZE로 검증한 뒤 변경 예정
         private const val DEFAULT_EF_SEARCH = 100
     }
 }
