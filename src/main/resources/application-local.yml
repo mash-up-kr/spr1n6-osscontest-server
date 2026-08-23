@@ -1,3 +1,11 @@
+cors:
+  allowed-origins: http://localhost:5173
+
+# 기본 설정의 connection-init-sql 이 읽는 값. dev·운영은 환경변수로 받는다.
+# 로컬 컨테이너 pgcrypto 에는 ARIA 가 없어 AES-256 을 쓴다.
+DB_ENCRYPTION_KEY: local-only-throwaway-key
+DB_ENCRYPTION_CIPHER: aes256
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/aidocs
@@ -12,8 +20,8 @@ spring:
         format_sql: true
 
 storage:
-  endpoint: http://localhost:9000
-  region: ap-northeast-2
-  access-key: aidocs
-  secret-key: aidocs1234
-  bucket: aidocs-documents
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  region: ${STORAGE_REGION:ap-northeast-2}
+  access-key: ${STORAGE_ACCESS_KEY:aidocs}
+  secret-key: ${STORAGE_SECRET_KEY:aidocs1234}
+  bucket: ${STORAGE_BUCKET:aidocs-documents}

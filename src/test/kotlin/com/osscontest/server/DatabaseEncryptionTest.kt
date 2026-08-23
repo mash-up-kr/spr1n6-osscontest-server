@@ -71,7 +71,7 @@ class DatabaseEncryptionTest {
     }
 
     @Test
-    fun `ARIA 256으로 암호화하고 기존 AES 256 암호문도 복호화한다`() {
+    fun `세션에 설정된 알고리즘으로 암호화하고 기존 AES 256 암호문도 복호화한다`() {
         dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
@@ -94,7 +94,8 @@ class DatabaseEncryptionTest {
                 statement.setString(1, "ARIA 암복호화 확인")
                 statement.executeQuery().use { resultSet ->
                     assertTrue(resultSet.next())
-                    assertTrue(resultSet.getString(1).contains("cipher-algo=aria256"))
+                    // 알고리즘을 함수에 박지 않고 세션 설정에서 읽는지 본다. 값 자체는 프로필마다 다르다.
+                    assertTrue(resultSet.getString(1).contains("app.encryption_cipher"))
                     assertTrue(resultSet.getBoolean(2))
                     assertTrue(resultSet.getBoolean(3))
                 }
