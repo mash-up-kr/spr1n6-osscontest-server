@@ -146,4 +146,26 @@ class SearchServiceTest {
         verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
         assertEquals(200, efSearchCaptor.firstValue)
     }
+
+    @Test
+    fun `efSearch가 상한을 넘으면 최대값으로 clamp 된다`() {
+        val (service, _, repository) = newService()
+
+        service.search(user, SearchRequest(query = "위약금", efSearch = 100_000))
+
+        val efSearchCaptor = argumentCaptor<Int>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
+        assertEquals(properties.maxEfSearch, efSearchCaptor.firstValue)
+    }
+
+    @Test
+    fun `efSearch가 topK보다 작으면 topK로 올라간다`() {
+        val (service, _, repository) = newService()
+
+        service.search(user, SearchRequest(query = "위약금", topK = 30, efSearch = 5))
+
+        val efSearchCaptor = argumentCaptor<Int>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
+        assertEquals(30, efSearchCaptor.firstValue)
+    }
 }

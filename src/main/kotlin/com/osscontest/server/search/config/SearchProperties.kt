@@ -14,6 +14,8 @@ data class SearchProperties(
     var defaultTopK: Int = 10,
     var maxTopK: Int = 50,
     var maxContextWindow: Int = 5,
+    var minEfSearch: Int = 1,
+    var maxEfSearch: Int = 500,
     var embedding: Embedding = Embedding(),
 ) {
     data class Embedding(

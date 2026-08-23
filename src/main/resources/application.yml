@@ -37,5 +37,7 @@ search:
   default-top-k: 10
   max-top-k: 50
   max-context-window: 5
+  min-ef-search: 1
+  max-ef-search: 500
   embedding:
     dimensions: 1536
