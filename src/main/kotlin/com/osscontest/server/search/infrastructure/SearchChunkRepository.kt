@@ -1,5 +1,6 @@
 package com.osscontest.server.search.infrastructure
 
+import com.osscontest.server.search.domain.SearchOptions
 import com.osscontest.server.search.domain.SearchResultItem
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -25,15 +26,13 @@ class SearchChunkRepository(
         userId: Long,
         queryText: String,
         queryEmbedding: List<Float>,
-        topK: Int,
-        contextWindow: Int,
-        efSearch: Int,
+        options: SearchOptions,
     ): List<SearchResultItem> {
-        // efSearch는 SearchService에서 Int로 clamp된 값이라 문자열 보간에 사용자 입력이 직접
-        // 섞이지 않는다. SET 문은 파라미터 바인딩을 지원하지 않아 문자열로 조립해야 한다.
+        // options.efSearch는 SearchService에서 Int로 clamp된 값이라 문자열 보간에 사용자 입력이
+        // 직접 섞이지 않는다. SET 문은 파라미터 바인딩을 지원하지 않아 문자열로 조립해야 한다.
         // SET LOCAL은 트랜잭션 스코프에서만 유효해 @Transactional이 반드시 있어야 하고,
         // 없으면 이 설정이 조용히 무시되고 커넥션 풀 재사용 시 다음 요청으로 값이 샐 수 있다.
-        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.ef_search = $efSearch")
+        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.ef_search = ${options.efSearch}")
 
         val params = MapSqlParameterSource()
             .addValue("tenantId", tenantId)
@@ -41,8 +40,8 @@ class SearchChunkRepository(
             .addValue("userIdText", userId.toString())
             .addValue("queryText", queryText)
             .addValue("queryEmbedding", queryEmbedding.toPgVectorLiteral())
-            .addValue("topK", topK)
-            .addValue("contextWindow", contextWindow)
+            .addValue("topK", options.topK)
+            .addValue("contextWindow", options.contextWindow)
 
         return jdbcTemplate.query(HYBRID_SEARCH_SQL, params, ::mapRow)
     }

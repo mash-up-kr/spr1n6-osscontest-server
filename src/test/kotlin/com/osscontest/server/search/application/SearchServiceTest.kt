@@ -4,6 +4,7 @@ import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.search.config.SearchProperties
+import com.osscontest.server.search.domain.SearchOptions
 import com.osscontest.server.search.domain.SearchResultItem
 import com.osscontest.server.search.infrastructure.EmbeddingClient
 import com.osscontest.server.search.infrastructure.SearchChunkRepository
@@ -32,7 +33,7 @@ class SearchServiceTest {
             on { embed(any()) } doReturn listOf(0.1f)
         },
         repository: SearchChunkRepository = mock {
-            on { hybridSearch(any(), any(), any(), any(), any(), any(), any()) } doReturn emptyList<SearchResultItem>()
+            on { hybridSearch(any(), any(), any(), any(), any()) } doReturn emptyList<SearchResultItem>()
         },
     ) = Triple(SearchService(embeddingClient, repository, properties), embeddingClient, repository)
 
@@ -54,9 +55,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", topK = 999))
 
-        val topKCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), topKCaptor.capture(), any(), any())
-        assertEquals(50, topKCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(50, optionsCaptor.firstValue.topK)
     }
 
     @Test
@@ -65,9 +66,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금"))
 
-        val topKCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), topKCaptor.capture(), any(), any())
-        assertEquals(10, topKCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(10, optionsCaptor.firstValue.topK)
     }
 
     @Test
@@ -76,9 +77,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", contextWindow = -3))
 
-        val contextWindowCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), contextWindowCaptor.capture(), any())
-        assertEquals(0, contextWindowCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(0, optionsCaptor.firstValue.contextWindow)
     }
 
     @Test
@@ -87,9 +88,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", contextWindow = 100))
 
-        val contextWindowCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), contextWindowCaptor.capture(), any())
-        assertEquals(5, contextWindowCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(5, optionsCaptor.firstValue.contextWindow)
     }
 
     @Test
@@ -103,7 +104,7 @@ class SearchServiceTest {
 
         verify(embeddingClient).embed("위약금")
         val queryTextCaptor = argumentCaptor<String>()
-        verify(repository).hybridSearch(any(), any(), queryTextCaptor.capture(), any(), any(), any(), any())
+        verify(repository).hybridSearch(any(), any(), queryTextCaptor.capture(), any(), any())
         assertEquals("위약금", queryTextCaptor.firstValue)
     }
 
@@ -118,9 +119,7 @@ class SearchServiceTest {
             userId = eq(1L),
             queryText = any(),
             queryEmbedding = any(),
-            topK = any(),
-            contextWindow = any(),
-            efSearch = any(),
+            options = any(),
         )
     }
 
@@ -130,9 +129,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금"))
 
-        val efSearchCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
-        assertEquals(100, efSearchCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(100, optionsCaptor.firstValue.efSearch)
     }
 
     @Test
@@ -141,9 +140,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", efSearch = 200))
 
-        val efSearchCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
-        assertEquals(200, efSearchCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(200, optionsCaptor.firstValue.efSearch)
     }
 
     @Test
@@ -152,9 +151,9 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", efSearch = 100_000))
 
-        val efSearchCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
-        assertEquals(properties.maxEfSearch, efSearchCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(properties.maxEfSearch, optionsCaptor.firstValue.efSearch)
     }
 
     @Test
@@ -163,8 +162,8 @@ class SearchServiceTest {
 
         service.search(user, SearchRequest(query = "위약금", topK = 30, efSearch = 5))
 
-        val efSearchCaptor = argumentCaptor<Int>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), any(), any(), efSearchCaptor.capture())
-        assertEquals(30, efSearchCaptor.firstValue)
+        val optionsCaptor = argumentCaptor<SearchOptions>()
+        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
+        assertEquals(30, optionsCaptor.firstValue.efSearch)
     }
 }

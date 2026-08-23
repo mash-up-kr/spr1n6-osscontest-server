@@ -4,6 +4,7 @@ import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.search.config.SearchProperties
+import com.osscontest.server.search.domain.SearchOptions
 import com.osscontest.server.search.domain.SearchResultItem
 import com.osscontest.server.search.infrastructure.EmbeddingClient
 import com.osscontest.server.search.infrastructure.SearchChunkRepository
@@ -44,9 +45,7 @@ class SearchService(
             userId = user.userId,
             queryText = query,
             queryEmbedding = queryEmbedding,
-            topK = topK,
-            contextWindow = contextWindow,
-            efSearch = efSearch,
+            options = SearchOptions(topK = topK, contextWindow = contextWindow, efSearch = efSearch),
         )
     }
 
