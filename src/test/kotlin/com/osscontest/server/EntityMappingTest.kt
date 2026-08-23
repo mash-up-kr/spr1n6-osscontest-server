@@ -1,6 +1,11 @@
 package com.osscontest.server
 
-import com.osscontest.server.document.domain.*
+import com.osscontest.server.document.domain.Document
+import com.osscontest.server.document.domain.DocumentAccessScope
+import com.osscontest.server.document.domain.DocumentVersion
+import com.osscontest.server.document.domain.IndexingStatus
+import com.osscontest.server.document.domain.Permission
+import com.osscontest.server.document.domain.PrincipalType
 import com.osscontest.server.indexing.domain.IndexingJob
 import com.osscontest.server.outbox.domain.OutboxEvent
 import com.osscontest.server.outbox.domain.OutboxEventType
@@ -13,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull

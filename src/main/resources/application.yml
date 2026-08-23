@@ -31,6 +31,7 @@ logging:
 
 server:
   tomcat:
+    # 풀지 않으면 크기 초과 업로드에서 톰캣이 응답 전에 연결을 끊어 413 이 클라이언트에 닿지 않는다.
     max-swallow-size: -1
 
 search:

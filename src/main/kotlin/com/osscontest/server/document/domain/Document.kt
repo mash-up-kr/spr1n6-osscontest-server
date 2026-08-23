@@ -37,6 +37,7 @@ class Document(
     @Column(name = "latest_upload_version_no", nullable = false)
     var latestUploadVersionNo: Long = 0
 
+    /** 임베딩까지 끝난 가장 최근 버전. API 서버에서 쓰는 곳은 없고 Worker 가 갱신한다. */
     @Column(name = "latest_embedding_version_no", nullable = false)
     var latestEmbeddingVersionNo: Long = 0
 
