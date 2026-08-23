@@ -31,7 +31,9 @@ class SearchService(
             .coerceIn(1, searchProperties.maxTopK)
         val contextWindow = (request.contextWindow ?: 0)
             .coerceIn(0, searchProperties.maxContextWindow)
-        val efSearch = request.efSearch ?: DEFAULT_EF_SEARCH
+        val efSearch = (request.efSearch ?: DEFAULT_EF_SEARCH)
+            .coerceIn(searchProperties.minEfSearch, searchProperties.maxEfSearch)
+            .coerceAtLeast(topK)
 
         val queryEmbedding = embeddingClient.embed(query)
 
