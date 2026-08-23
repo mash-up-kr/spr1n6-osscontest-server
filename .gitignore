@@ -43,3 +43,7 @@ bin/
 
 ### macOS ###
 .DS_Store
+
+### Claude Code ###
+# 스킬(.claude/skills/)은 팀 공유 대상이라 커밋한다. 개인 권한 설정만 제외한다.
+.claude/settings.local.json
