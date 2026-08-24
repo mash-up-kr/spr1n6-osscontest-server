@@ -1,9 +1,10 @@
 # 환경 변수 (.env.example은 커밋 대상이므로 제외하지 않는다)
-.env
-.env.local
-.env.integration
+# .env* 로 한 번에 막는다. 파일을 새로 만들 때마다 여기에 줄을 추가하는 방식은
+# 추가를 잊는 순간 비밀값이 커밋되고, 저장소가 public 이라 되돌릴 수 없다.
+.env*
 !.env.example
 !.env.integration.example
+!.env.deploy.example
 
 # SSH 키와 터널 제어 소켓
 *.pem
