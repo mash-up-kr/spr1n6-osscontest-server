@@ -3,7 +3,9 @@ package com.osscontest.server.mcp.tool
 import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.web.AuthContext
+import com.osscontest.server.common.web.PageResponse
 import com.osscontest.server.document.api.DocumentSummary
+import com.osscontest.server.document.api.ListDocumentsRequest
 import com.osscontest.server.document.service.DocumentService
 import com.osscontest.server.mcp.config.SearchMcpTransportConfig
 import com.osscontest.server.search.application.SearchRequest
@@ -58,6 +60,43 @@ class SearchTools(
         requestContext: McpSyncRequestContext,
     ): List<SearchResultItem> =
         searchService.search(resolveAuthContext(requestContext), SearchRequest(query, topK, contextWindow, efSearch))
+
+    @McpTool(
+        name = "list_documents",
+        description = "현재 tenant에 속한 문서 목록을 조회한다. 커서 기반 페이지네이션을 지원한다.",
+        annotations = McpTool.McpAnnotations(
+            readOnlyHint = true,
+            destructiveHint = false,
+            idempotentHint = true,
+            openWorldHint = false,
+        ),
+    )
+    fun listDocuments(
+        @McpToolParam(description = "반환할 최대 문서 수. 기본 20, 최대 100", required = false)
+        limit: Int?,
+        @McpToolParam(description = "이전 응답의 nextCursor 값. 다음 페이지를 이어서 조회할 때 지정한다", required = false)
+        cursor: String?,
+        @McpToolParam(description = "문서 제목 검색어. 지정하면 제목에 포함된 문서만 반환한다", required = false)
+        q: String?,
+        @McpToolParam(
+            description = "최신 버전의 인덱싱 상태로 필터링. PENDING/IN_PROGRESS/COMPLETED/FAILED 중 하나",
+            required = false,
+        )
+        indexingStatus: String?,
+        @McpToolParam(description = "검색 가능한(인덱싱 완료된) 버전이 지정돼 있는 문서만 필터링할지 여부", required = false)
+        searchable: Boolean?,
+        requestContext: McpSyncRequestContext,
+    ): PageResponse<DocumentSummary> =
+        documentService.listDocuments(
+            resolveAuthContext(requestContext),
+            ListDocumentsRequest(
+                limit = limit ?: 20,
+                cursor = cursor,
+                q = q,
+                indexingStatus = indexingStatus,
+                searchable = searchable,
+            ),
+        )
 
     @McpTool(
         name = "get_document",
