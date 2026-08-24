@@ -80,7 +80,6 @@ services:
     environment:
       # Caddyfile 이 읽는다. 인증서를 이 이름으로 발급받으므로 실제로 이 서버를 가리켜야 한다.
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?.env.deploy 에 PUBLIC_DOMAIN 이 필요합니다}
-      ACME_EMAIL: ${ACME_EMAIL:-}
       TZ: Asia/Seoul
     ports:
       # 80 은 리다이렉트용이 아니다. Let's Encrypt 가 도메인 소유를 확인할 때 쓰므로
