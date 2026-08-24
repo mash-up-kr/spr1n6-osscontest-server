@@ -1,0 +1,51 @@
+# 백엔드 앞단. HTTPS 를 종료하고 평문으로 server 에 넘긴다.
+#
+# 프론트가 버셀(HTTPS)에 있어 백엔드도 HTTPS 여야 한다. HTTPS 페이지에서 HTTP 로 보내는
+# 요청은 브라우저가 차단하므로(mixed content), 인증서 없이는 화면만 뜨고 아무 요청도 나가지 않는다.
+#
+# 스프링에 직접 TLS 를 붙이지 않는다. 그렇게 하면 인증서 파일과 90일 갱신을 앱이 떠안는다.
+# Caddy 는 Let's Encrypt 발급과 갱신을 자동으로 하고, 스프링 코드는 한 줄도 바뀌지 않는다.
+#
+# 정적 파일은 서빙하지 않는다. 프론트는 버셀에 있고 이 서버는 API 만 낸다.
+
+# 전역 옵션 블록을 두지 않는다. 인증서 만료 경고용 email 을 환경변수로 받으려 했으나,
+# 값이 비면 인자 없는 `email` 로 펼쳐져 Caddy 가 설정 파싱 단계에서 기동을 거부한다.
+# 익명 발급도 정상 동작하므로 선택 항목 하나를 위해 기동이 값에 의존하게 만들지 않는다.
+
+# 도메인은 환경변수로 받는다. Let's Encrypt 는 IP 주소로 인증서를 발급하지 않으므로
+# 반드시 이름이 필요하다. 도메인이 없으면 sslip.io 를 쓴다(<대시-구분-IP>.sslip.io 가
+# 그 IP 로 해석된다). .env.deploy 의 PUBLIC_DOMAIN 참고.
+{$PUBLIC_DOMAIN} {
+	encode zstd gzip
+
+	# 20MB 업로드를 받으므로 여유를 두고 21MB 로 막는다. 서버의 max-request-size 와 같은 값이다.
+	# 여기서 걸리면 클라이언트는 413 을 받고, 프론트가 그 상태 코드를 업로드 용량 안내로 바꾼다.
+	request_body {
+		max_size 21MB
+	}
+
+	# MCP(Streamable HTTP). 응답을 모아서 보내면 스트리밍이 끊기므로 즉시 흘려보낸다.
+	# flush_interval -1 이 그 뜻이다. /api 쪽에는 필요 없다.
+	@mcp path /mcp /mcp/*
+	handle @mcp {
+		reverse_proxy server:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle /api/* {
+		# 헤더는 기본적으로 그대로 전달된다. 프론트가 보내는 X-User-Id 도 여기 포함된다.
+		reverse_proxy server:8080
+	}
+
+	# 배포가 살아 있는지 밖에서 확인하는 용도로 health 만 연다.
+	# /actuator 전체를 열면 환경변수와 빈 목록까지 노출될 수 있다.
+	handle /actuator/health {
+		reverse_proxy server:8080
+	}
+
+	# 그 밖의 경로는 닫는다. 이 서버에 브라우저로 직접 들어올 일이 없다.
+	handle {
+		respond "Not Found" 404
+	}
+}
