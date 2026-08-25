@@ -95,7 +95,7 @@ docker compose down -v     # 데이터까지 지웁니다
 ## 문서
 
 - [개발 가이드](docs/DEVELOPMENT.md) — 프로파일별 개발 방식, 마이그레이션, 협업 규칙
-- [API 설계](docs/api-design.md)
+- [API 설계](docs/API-DESIGN.md)
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
 
 ---

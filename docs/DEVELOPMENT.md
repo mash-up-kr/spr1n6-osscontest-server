@@ -221,4 +221,4 @@ chore: Spring Boot 4.1.0 업그레이드
 ## 관련 문서
 
 - [코드 컨벤션](CODE_CONVENTIONS.md)
-- [API 설계](api-design.md)
+- [API 설계](API-DESIGN.md)
