@@ -3,7 +3,8 @@
 # 추가를 잊는 순간 비밀값이 커밋되고, 저장소가 public 이라 되돌릴 수 없다.
 .env*
 !.env.example
-!.env.integration.example
+!.env.dev.example
+!.env.tunnel.example
 !.env.deploy.example
 
 # SSH 키와 터널 제어 소켓

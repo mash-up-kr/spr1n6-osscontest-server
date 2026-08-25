@@ -1,0 +1,65 @@
+# 공유 DB(리모트 Tmax OpenSQL)에 붙는 오버레이. base 위에 얹어 쓴다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml \
+#     --env-file .env.tunnel up -d
+#
+# base 는 DB 를 컨테이너로 띄운다. 이 오버레이는 그 자리에 SSH 터널을 넣어, 서비스들이
+# 보는 db:5432 가 리모트 DB 로 이어지게 한다. 서비스 이름을 그대로 두므로 server·relay·
+# worker 의 접속 설정은 하나도 손대지 않는다.
+#
+# 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고 호스트 포트도 열지 않는다.
+#
+# 주의. 공유 DB 를 쓰므로 마이그레이션이 팀 전체에 영향을 준다. 적용 규칙은
+# docs/DEVELOPMENT.md 를 따른다.
+#
+# 요구 사항: Docker Compose v2.24 이상 (!override, !reset 태그).
+
+services:
+  db:
+    image: alpine:3.20
+    # 원래 값은 postgres 이미지의 entrypoint 다. 지우지 않으면 터널 대신 DB 가 뜬다.
+    command: !reset null
+    environment: !override
+      SSH_HOST: ${SSH_HOST:?.env.tunnel 에 SSH_HOST 가 필요합니다}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:?.env.tunnel 에 SSH_USER 가 필요합니다}
+      TUNNEL_REMOTE_HOST: ${TUNNEL_REMOTE_HOST:-127.0.0.1}
+      TUNNEL_REMOTE_PORT: ${TUNNEL_REMOTE_PORT:-5432}
+      TZ: Asia/Seoul
+    volumes: !override
+      # 읽기 전용 바인드 마운트. 이미지에 굽지 않으므로 이미지를 공유해도 키가 따라가지 않는다.
+      - ${SSH_KEY_PATH:?.env.tunnel 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
+    # 0.0.0.0 은 이 컨테이너의 인터페이스다. 호스트가 아니라 컴포즈 네트워크에만 열린다.
+    # 키는 소유자·권한 검사를 피하려고 컨테이너 안으로 복사해서 쓴다.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-client >/dev/null &&
+        cp /key /tmp/id && chmod 600 /tmp/id &&
+        exec ssh -N \
+          -i /tmp/id \
+          -p "$${SSH_PORT}" \
+          -o StrictHostKeyChecking=accept-new \
+          -o ExitOnForwardFailure=yes \
+          -o ServerAliveInterval=30 \
+          -o ServerAliveCountMax=3 \
+          -L 0.0.0.0:5432:"$${TUNNEL_REMOTE_HOST}":"$${TUNNEL_REMOTE_PORT}" \
+          "$${SSH_USER}@$${SSH_HOST}"
+    healthcheck: !override
+      # busybox netstat 으로 터널 포트가 열렸는지만 본다. 리모트 DB 가 살아 있는지는
+      # 보지 않는다. 그것은 server 의 actuator/health 가 잡는다.
+      test: [ "CMD-SHELL", "netstat -ltn | grep -q ':5432'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  server:
+    environment:
+      # 리모트 Tmax OpenSQL 에는 OpenCrypto 가 있으므로 ARIA-256 을 쓴다.
+      DB_ENCRYPTION_CIPHER: ${DB_ENCRYPTION_CIPHER:-aria256}
+      # base 는 빈 컨테이너 DB 를 전제로 자동 적용을 켠다. 여기는 공유 DB 라 그대로 두면
+      # 스택을 올리는 것만으로 팀 전체의 스키마가 바뀐다. 적용은 사람이 한다.
+      # 적용할 때만 SPRING_FLYWAY_ENABLED=true 로 켠다(docs/DEVELOPMENT.md).
+      SPRING_FLYWAY_ENABLED: "false"
