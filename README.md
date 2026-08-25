@@ -142,7 +142,7 @@ docker compose down -v     # 데이터까지 지웁니다
 | `list_documents` | 테넌트에 속한 문서 목록을 커서 기반 페이지네이션으로 조회합니다 |
 | `get_document` | `documentId`로 검색 없이 문서 상세를 바로 조회합니다 |
 
-파라미터는 [API 명세 10장](docs/API-SPEC.md)에 있습니다.
+파라미터는 [API 명세 10장](docs/API_SPEC.md)에 있습니다.
 
 ### 사용법
 
@@ -209,7 +209,7 @@ web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka
 - [개발 가이드](docs/DEVELOPMENT.md) — 프로파일별 개발 방식, 마이그레이션, 환경 변수
 - [검색 설계와 평가](docs/SEARCH.md) — 하이브리드 검색 설계, 평가 방법, 고도화 결과
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
-- [API 명세](docs/API-SPEC.md)
+- [API 명세](docs/API_SPEC.md)
 
 ---
 
