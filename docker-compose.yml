@@ -1,50 +1,43 @@
-# 전체 통합 환경. API 서버·릴레이·워커·카프카를 한 번에 띄운다.
+# 전체 스택. API 서버·릴레이·워커·카프카·DB 를 한 번에 띄운다.
 #
-#   docker compose -f docker-compose.integration.yml --env-file .env.integration up -d
+#   docker compose up -d --build
 #
-# DB 는 띄우지 않는다. dev 환경과 마찬가지로 리모트 Tmax OpenSQL 에 붙되,
-# 터널을 db-tunnel 컨테이너가 직접 연다. 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고
-# 호스트 포트도 열지 않는다. 서비스들은 db-tunnel:5432 로 접속한다.
+# DB 를 컨테이너로 함께 띄우므로 이 파일만으로 완결된다. 처음 받은 사람이 값 하나
+# (OPENAI_API_KEY)만 채우면 전체가 돈다.
 #
-# 로컬 개발용(docker-compose.yml)과 포트·볼륨을 분리해 두 환경을 동시에 띄울 수 있다.
+# 공유 DB 나 배포 환경은 이 위에 오버레이를 얹는다. 기본형을 자기완결적인 쪽으로 두고
+# 특수한 경우를 얹는 방향이다. 반대로 하면 가장 흔한 경우가 가장 번거로워진다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d   # 공유 DB
+#   docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d   # 배포
+#
 # web(React SPA)은 컨테이너로 띄우지 않는다. 호스트에서 실행하고 localhost:8080 을 바라보게 한다.
 
 name: aidocs-integration
 
 services:
-  db-tunnel:
-    image: alpine:3.20
-    container_name: aidocs-it-db-tunnel
+  db:
+    # pgvector 가 들어 있는 이미지다. init_schema 가 CREATE EXTENSION vector 를 실행하므로
+    # 맨 PostgreSQL 이미지로는 마이그레이션이 실패한다.
+    image: pgvector/pgvector:pg17
+    container_name: aidocs-it-db
     restart: unless-stopped
     environment:
-      SSH_HOST: ${SSH_HOST:?.env.integration 에 SSH_HOST 가 필요합니다}
-      SSH_PORT: ${SSH_PORT:-22}
-      SSH_USER: ${SSH_USER:?.env.integration 에 SSH_USER 가 필요합니다}
-      TUNNEL_REMOTE_HOST: ${TUNNEL_REMOTE_HOST:-127.0.0.1}
-      TUNNEL_REMOTE_PORT: ${TUNNEL_REMOTE_PORT:-5432}
+      POSTGRES_DB: ${DB_NAME:-aidocs}
+      POSTGRES_USER: ${DB_USERNAME:-aidocs}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-aidocs}
+      TZ: Asia/Seoul
     volumes:
-      # 읽기 전용 바인드 마운트. 이미지에 굽지 않으므로 이미지를 공유해도 키가 따라가지 않는다.
-      - ${SSH_KEY_PATH:?.env.integration 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
-    # 0.0.0.0 은 이 컨테이너의 인터페이스다. 호스트가 아니라 컴포즈 네트워크에만 열린다.
-    # 키는 소유자·권한 검사를 피하려고 컨테이너 안으로 복사해서 쓴다.
-    command: >
-      sh -c "apk add --no-cache openssh-client >/dev/null &&
-      cp /key /tmp/id && chmod 600 /tmp/id &&
-      exec ssh -N
-      -i /tmp/id
-      -p $${SSH_PORT}
-      -o StrictHostKeyChecking=accept-new
-      -o ExitOnForwardFailure=yes
-      -o ServerAliveInterval=30
-      -o ServerAliveCountMax=3
-      -L 0.0.0.0:5432:$${TUNNEL_REMOTE_HOST}:$${TUNNEL_REMOTE_PORT}
-      $${SSH_USER}@$${SSH_HOST}"
+      # initdb 는 데이터 디렉터리가 빌 때만 돈다. 스크립트나 스키마를 고쳤으면
+      # docker compose down -v 로 볼륨을 지우고 다시 올려야 반영된다.
+      - ./scripts/local-db:/docker-entrypoint-initdb.d:ro
+      - aidocs-it-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "netstat -ltn | grep -q ':5432'" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-aidocs} -d ${DB_NAME:-aidocs}" ]
       interval: 5s
       timeout: 5s
       retries: 12
-      start_period: 20s
+      start_period: 10s
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -52,8 +45,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?.env.integration 에 STORAGE_ACCESS_KEY 가 필요합니다}
-      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?.env.integration 에 STORAGE_SECRET_KEY 가 필요합니다}
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:-aidocs}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:-aidocs1234}
       TZ: Asia/Seoul
     ports:
       - "${MINIO_HOST_PORT:-9010}:9000"
@@ -74,9 +67,9 @@ services:
       minio:
         condition: service_healthy
     environment:
-      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
-      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:?.env.integration 에 STORAGE_BUCKET 이 필요합니다}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-aidocs}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $${STORAGE_ACCESS_KEY} $${STORAGE_SECRET_KEY} &&
@@ -120,7 +113,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     ports:
-      - "8081:8080"
+      - "${KAFKA_UI_HOST_PORT:-8081}:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -128,7 +121,7 @@ services:
       - kafka
 
   # ---------------------------------------------------------------------------
-  # 릴레이와 워커 이미지 이름·태그는 .env.integration 에서 받는다.
+  # 릴레이와 워커는 각 저장소가 올린 이미지를 받아 쓴다.
   # ---------------------------------------------------------------------------
 
   server:
@@ -136,23 +129,26 @@ services:
     container_name: aidocs-it-server
     restart: unless-stopped
     depends_on:
-      db-tunnel: { condition: service_healthy }
+      db: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_FLYWAY_ENABLED: "true"
-      DB_HOST: db-tunnel
+      DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:?.env.integration 에 DB_ENCRYPTION_KEY 가 필요합니다}
+      DB_NAME: ${DB_NAME:-aidocs}
+      DB_USERNAME: ${DB_USERNAME:-aidocs}
+      DB_PASSWORD: ${DB_PASSWORD:-aidocs}
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:-local-only-throwaway-key}
+      # ARIA 는 Tmax OpenCrypto 확장에만 있다. 컨테이너 pgcrypto 에는 없으므로 AES-256 을 쓴다.
+      # 리모트 Tmax OpenSQL 에 붙는 오버레이가 aria256 으로 덮는다.
+      DB_ENCRYPTION_CIPHER: ${DB_ENCRYPTION_CIPHER:-aes256}
       STORAGE_ENDPOINT: http://minio:9000
-      STORAGE_REGION: ${STORAGE_REGION}
-      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
-      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-      STORAGE_BUCKET: ${STORAGE_BUCKET}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?.env.integration 에 OPENAI_API_KEY 가 필요합니다}
+      STORAGE_REGION: ${STORAGE_REGION:-ap-northeast-2}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-aidocs}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?.env 에 OPENAI_API_KEY 가 필요합니다}
       # web 은 컨테이너가 아니라 호스트에서 뜨므로 호스트 origin 을 허용한다.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
@@ -165,11 +161,11 @@ services:
       start_period: 40s
 
   relay:
-    image: ${RELAY_IMAGE:?.env.integration 에 RELAY_IMAGE 가 필요합니다}
+    image: ${RELAY_IMAGE:-ghcr.io/mash-up-kr/spr1n6-osscontest-relay:latest}
     container_name: aidocs-it-relay
     restart: unless-stopped
     depends_on:
-      db-tunnel: { condition: service_healthy }
+      db: { condition: service_healthy }
       kafka: { condition: service_healthy }
       # 스키마 때문에 server 를 기다린다. outbox_event 는 server 의 마이그레이션이 만들고,
       # 릴레이는 기동할 때 그 형태가 맞는지 확인만 하고 어긋나면 일부러 기동을 중단한다
@@ -179,9 +175,9 @@ services:
       server: { condition: service_healthy }
     environment:
       # 릴레이는 자체 변수명 대신 스프링 표준 환경 변수를 그대로 받는다.
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-aidocs}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-aidocs}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-aidocs}
       # 컨테이너 간 리스너 주소다. 호스트 노출용 localhost:29092 가 아니다.
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN:-}
@@ -194,25 +190,26 @@ services:
     stop_grace_period: 45s
 
   worker:
-    image: ${WORKER_IMAGE:?.env.integration 에 WORKER_IMAGE 가 필요합니다}
+    image: ${WORKER_IMAGE:-ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest}
     container_name: aidocs-it-worker
     restart: unless-stopped
     depends_on:
-      db-tunnel: { condition: service_healthy }
+      db: { condition: service_healthy }
       kafka: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
-      DB_URL: jdbc:postgresql://db-tunnel:5432/${DB_NAME}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-aidocs}
+      DB_USERNAME: ${DB_USERNAME:-aidocs}
+      DB_PASSWORD: ${DB_PASSWORD:-aidocs}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       INDEXING_STORAGE_ENDPOINT: http://minio:9000
-      INDEXING_STORAGE_REGION: ${STORAGE_REGION}
-      INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET}
-      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
-      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
+      INDEXING_STORAGE_REGION: ${STORAGE_REGION:-ap-northeast-2}
+      INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-aidocs}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
 volumes:
+  aidocs-it-db-data:
   aidocs-it-minio-data:
   aidocs-it-kafka-data:
