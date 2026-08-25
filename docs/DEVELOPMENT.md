@@ -222,4 +222,4 @@ chore: Spring Boot 4.1.0 업그레이드
 
 - [기여 안내](../CONTRIBUTING.md) — 브랜치, 커밋 메시지, PR
 - [코드 컨벤션](CODE_CONVENTIONS.md)
-- [API 설계](API-DESIGN.md)
+- [API 명세](API-SPEC.md)

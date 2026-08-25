@@ -164,7 +164,7 @@ web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka
 - [기여 안내](CONTRIBUTING.md) — 브랜치, 커밋 메시지, PR
 - [개발 가이드](docs/DEVELOPMENT.md) — 프로파일별 개발 방식, 마이그레이션, 환경 변수
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
-- [API 명세](docs/API-DESIGN.md)
+- [API 명세](docs/API-SPEC.md)
 
 ---
 
