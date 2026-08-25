@@ -574,7 +574,7 @@ DELETE /api/v1/documents/{documentId}/permissions/{principalType}/{principalId}
 
 AI 클라이언트가 붙어 쓰는 인터페이스입니다. 엔드포인트는 `/mcp`이고 Streamable HTTP 로 통신합니다.
 
-REST 와 같은 권한 검사를 거칩니다. 신원은 마찬가지로 `X-User-Id` 헤더로 받으며, 값이 없으면 인증 실패로 응답합니다. 도구가 돌려주는 문서는 그 사용자가 REST 로 조회했을 때 볼 수 있는 것과 같습니다.
+REST 와 같은 권한 검사를 거칩니다. 다만 신원은 `X-Search-User-Id` 헤더로 받습니다. REST 의 `X-User-Id` 와는 다른 헤더이며, 값이 없거나 숫자가 아니면 인증 실패로 응답합니다. 도구가 돌려주는 문서는 그 사용자가 REST 로 조회했을 때 볼 수 있는 것과 같습니다.
 
 세 도구 모두 읽기 전용입니다. 문서를 만들거나 고치거나 지우지 않습니다.
 
