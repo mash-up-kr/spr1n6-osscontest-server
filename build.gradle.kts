@@ -45,6 +45,9 @@ dependencies {
     }
     runtimeOnly("org.postgresql:postgresql")
 
+    // 형태소 분석 (질의어 토큰화, BM25 키워드 후보 회수에 사용, 순수 Java라 네이티브 의존성 없음)
+    implementation("org.apache.lucene:lucene-analysis-nori:9.11.1")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

@@ -33,6 +33,9 @@ class SearchChunkRepositoryTest {
     @Autowired
     private lateinit var repository: SearchChunkRepository
 
+    @Autowired
+    private lateinit var noriTokenizer: NoriTokenizer
+
     // 모든 청크가 공유하는 더미 벡터. 값 자체는 의미 없고, 질의 임베딩과 동일해 벡터 거리가
     // 전부 0으로 묶이게 해서 RRF 결과가 키워드 매칭에 의해 결정되도록 만든다.
     private val dummyEmbedding = List(1536) { if (it == 0) 1.0f else 0.0f }
@@ -191,11 +194,11 @@ class SearchChunkRepositoryTest {
         em.createNativeQuery(
             """
             INSERT INTO document_chunk
-                (tenant_id, document_version_id, document_id, chunk_no, content, content_hash,
-                 embedding, embedded_at)
+                (tenant_id, document_version_id, document_id, chunk_no, content, content_tokens,
+                 content_hash, embedding, embedded_at)
             VALUES
-                (:tenantId, :versionId, :documentId, :chunkNo, :content, :contentHash,
-                 CAST(:embedding AS vector), now())
+                (:tenantId, :versionId, :documentId, :chunkNo, :content, :contentTokens,
+                 :contentHash, CAST(:embedding AS vector), now())
             """.trimIndent(),
         )
             .setParameter("tenantId", tenantId)
@@ -203,6 +206,9 @@ class SearchChunkRepositoryTest {
             .setParameter("documentId", document.id)
             .setParameter("chunkNo", chunkNo)
             .setParameter("content", content)
+            // 실제 Worker 적재 계약과 같은 방식(NoriTokenizer)으로 토큰을 채워야
+            // 키워드 후보 회수(GIN, content_tokens 기준)가 이 테스트 데이터에서도 매칭된다.
+            .setParameter("contentTokens", noriTokenizer.tokenize(content).joinToString(" "))
             .setParameter("contentHash", "sha256:${content.hashCode()}")
             .setParameter("embedding", dummyEmbedding.toPgVectorLiteral())
             .executeUpdate()

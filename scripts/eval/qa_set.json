@@ -1,0 +1,262 @@
+[
+  {
+    "chunk_id": 5,
+    "document_id": 1,
+    "question": "국회가 2021년 예산을 언제까지 합의해 처리해야 한다고 언급되었나요?"
+  },
+  {
+    "chunk_id": 6,
+    "document_id": 1,
+    "question": "21대 국회 첫 정기국회가 시작되며 처리해야 할 일의 기간은 얼마나 되나요?"
+  },
+  {
+    "chunk_id": 7,
+    "document_id": 1,
+    "question": "극심한 기후변화와 코로나19 위기가 무엇으로 설명되고 있나요?"
+  },
+  {
+    "chunk_id": 11,
+    "document_id": 1,
+    "question": "국회는 몇 일 동안 쉬지 않고 열려야 한다고 주장하고 있나요?"
+  },
+  {
+    "chunk_id": 19,
+    "document_id": 2,
+    "question": "발언자가 언급한 재난 상황의 지속 기간은 얼마나 되나요?"
+  },
+  {
+    "chunk_id": 22,
+    "document_id": 2,
+    "question": "국회가 2021년 예산을 언제까지 합의해 처리할 것을 요청하고 있나요?"
+  },
+  {
+    "chunk_id": 25,
+    "document_id": 2,
+    "question": "코로나19 위기는 무엇으로 설명되고 있나요?"
+  },
+  {
+    "chunk_id": 26,
+    "document_id": 2,
+    "question": "정쟁의 정치에서 정책 경쟁의 정치로의 전환 가능성은 있는가?"
+  },
+  {
+    "chunk_id": 35,
+    "document_id": 3,
+    "question": "비밀번호는 최소 몇 자 이상이어야 하나요?"
+  },
+  {
+    "chunk_id": 222,
+    "document_id": 7,
+    "question": "교통이 복지라는 주장을 한 발언자는 누구인가요?"
+  },
+  {
+    "chunk_id": 829,
+    "document_id": 11,
+    "question": "해병대가 민물에서 겪는 문제점 중 하나는 무엇인가요?"
+  },
+  {
+    "chunk_id": 986,
+    "document_id": 11,
+    "question": "위원장님의 독단으로 인해 어떤 문제가 발생하고 있나요?"
+  },
+  {
+    "chunk_id": 1051,
+    "document_id": 11,
+    "question": "판결문 공개가 사법부에 대한 불신을 회복하는 가장 효과적인 방법이라는 주장은 무엇인가요?"
+  },
+  {
+    "chunk_id": 3368,
+    "document_id": 12,
+    "question": "확정되지 않은 사건의 판결서를 공개하는 것이 어떤 원칙을 훼손할 우려가 있나요?"
+  },
+  {
+    "chunk_id": 3658,
+    "document_id": 12,
+    "question": "아들이 복무 중인 보직의 위험성 때문에 후임이 오지 않는 이유는 무엇인가요?"
+  },
+  {
+    "chunk_id": 4582,
+    "document_id": 12,
+    "question": "한국에서 고금리가 발생하는 주된 원인은 무엇인가요?"
+  },
+  {
+    "chunk_id": 6525,
+    "document_id": 14,
+    "question": "입영판정검사의 질을 상향하기 위한 계획은 무엇인가요?"
+  },
+  {
+    "chunk_id": 7233,
+    "document_id": 19,
+    "question": "퇴직금 지급을 위해 이·전용한 부분이 있는 공무직 직원의 수는 몇 명인가요?"
+  },
+  {
+    "chunk_id": 7633,
+    "document_id": 21,
+    "question": "예산 편성권을 침해하는 것이 문제라는 주장은 누구에 의해 제기되었나요?"
+  },
+  {
+    "chunk_id": 13756,
+    "document_id": 50,
+    "question": "예산이 부정행위로 유용되는 경우가 많다는 발언자는 누구인가요?"
+  },
+  {
+    "chunk_id": 13835,
+    "document_id": 51,
+    "question": "공연 장비를 보관하기 위한 공간이 필요한 이유는 무엇인가요?"
+  },
+  {
+    "chunk_id": 20962,
+    "document_id": 88,
+    "question": "의대생들이 복귀한다고 발표한 정부는 어떤 정부인가요?"
+  },
+  {
+    "chunk_id": 22184,
+    "document_id": 90,
+    "question": "대법원 판결 이후 재심 신청이 적절하지 않다는 주장은 누구에 의해 제기되었나요?"
+  },
+  {
+    "chunk_id": 24142,
+    "document_id": 100,
+    "question": "가상계좌 방식이 대금체불 문제를 차단하는 데 좋은 방식이라는 주장은 누가 확인했나요?"
+  },
+  {
+    "chunk_id": 24280,
+    "document_id": 100,
+    "question": "입찰 사업자 선정을 5월까지 마치는 것을 목표로 하고 있는 기관은 어디인가요?"
+  },
+  {
+    "chunk_id": 24309,
+    "document_id": 102,
+    "question": "기재부가 주장하는 예산 강행 규정의 문제점은 무엇인가요?"
+  },
+  {
+    "chunk_id": 26415,
+    "document_id": 109,
+    "question": "1997년부터 2024년까지 발생한 사망자는 몇 명인가요?"
+  },
+  {
+    "chunk_id": 831,
+    "document_id": 11,
+    "question": "발인 날에 많은 동료 의원들이 참석했는가요?"
+  },
+  {
+    "chunk_id": 989,
+    "document_id": 11,
+    "question": "하급심 판결문 공개법에 대한 인권침해 우려를 제기한 사람은 누구인가요?"
+  },
+  {
+    "chunk_id": 1055,
+    "document_id": 11,
+    "question": "모든 판결서는 확정 사건과 미확정 사건을 포함하여 공개되어야 하나요?"
+  },
+  {
+    "chunk_id": 2293,
+    "document_id": 11,
+    "question": "여당과 야당의 표현의 자유 기준이 다를 경우 민주주의가 아닌가요?"
+  },
+  {
+    "chunk_id": 2628,
+    "document_id": 11,
+    "question": "의회민주주의가 이루어지는 방식은 무엇인가요?"
+  },
+  {
+    "chunk_id": 3084,
+    "document_id": 12,
+    "question": "형사소송법 일부개정법률안(대안)은 몇 건의 법률안을 통합 조정한 것인가요?"
+  },
+  {
+    "chunk_id": 6883,
+    "document_id": 16,
+    "question": "비관세 장벽 관련 논의 작업반은 어느 두 기관 간에 만들어지고 있나요?"
+  },
+  {
+    "chunk_id": 7073,
+    "document_id": 18,
+    "question": "특활비 사용 내역을 제출하지 않을 경우 어떤 조치가 취해지나요?"
+  },
+  {
+    "chunk_id": 7643,
+    "document_id": 22,
+    "question": "중소기업 지원 예산에서 감액해야 하는 금액은 얼마인가요?"
+  },
+  {
+    "chunk_id": 11049,
+    "document_id": 43,
+    "question": "항공안전 분야의 4개 사업에 대해 추가로 증액된 예산은 얼마인가요?"
+  },
+  {
+    "chunk_id": 11169,
+    "document_id": 41,
+    "question": "이번 추경의 지원 대상 기업 수는 몇 개사로 늘어났나요?"
+  },
+  {
+    "chunk_id": 11870,
+    "document_id": 44,
+    "question": "여객기 참사와 관련하여 조종사에 대한 법 적용 여부는 어떻게 되었나요?"
+  },
+  {
+    "chunk_id": 11974,
+    "document_id": 44,
+    "question": "국회 의원회관 점심 가격은 얼마로 제안되었나요?"
+  },
+  {
+    "chunk_id": 12469,
+    "document_id": 48,
+    "question": "5700억 원 감액의 이유는 무엇인가요?"
+  },
+  {
+    "chunk_id": 15076,
+    "document_id": 57,
+    "question": "기본경비를 10% 감액할 경우 어떤 문제가 발생할 수 있나요?"
+  },
+  {
+    "chunk_id": 17593,
+    "document_id": 69,
+    "question": "공공재정 부정청구에 대한 응징이 법으로 시작될 것이라는 주장을 누가 했나요?"
+  },
+  {
+    "chunk_id": 18111,
+    "document_id": 72,
+    "question": "장관 행사를 준비하는 데 필요한 예산은 얼마라고 주장되었나요?"
+  },
+  {
+    "chunk_id": 20975,
+    "document_id": 88,
+    "question": "필수의료 지역의 의사 부족 문제 해결을 위해 어떤 기관의 설립이 필요하다고 언급되었나요?"
+  },
+  {
+    "chunk_id": 24296,
+    "document_id": 102,
+    "question": "해외 불법 사이트의 음란 영상을 삭제하기 위한 요청은 어떤 경로를 통해 이루어질 수 있나요?"
+  },
+  {
+    "chunk_id": 24891,
+    "document_id": 101,
+    "question": "장애인예술 관련 공모사업의 예산 규모는 얼마인가요?"
+  },
+  {
+    "chunk_id": 25045,
+    "document_id": 104,
+    "question": "농지 취득 규제는 어떤 방향으로 변화하고 있나요?"
+  },
+  {
+    "chunk_id": 25358,
+    "document_id": 108,
+    "question": "대국민 홍보를 위한 예산으로 얼마의 증액이 필요하다고 언급되었나요?"
+  },
+  {
+    "chunk_id": 26551,
+    "document_id": 111,
+    "question": "군인 급식 규정에 따르면 군인에게 급식을 제공하는 것이 원칙인가요?"
+  },
+  {
+    "chunk_id": 27798,
+    "document_id": 120,
+    "question": "기탁금품 기부행위가 어떤 영향을 받을 수 있다고 언급되었나요?"
+  },
+  {
+    "chunk_id": 28513,
+    "document_id": 123,
+    "question": "마을기업의 특산품은 어떤 방식으로 답례품으로 활용될 수 있나요?"
+  }
+]
