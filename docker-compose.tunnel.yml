@@ -55,11 +55,32 @@ services:
       retries: 12
       start_period: 20s
 
+  # ---------------------------------------------------------------------------
+  # base 는 값이 없으면 로컬 전용 기본값을 넣는다. 여기서는 공유 DB 에 붙으므로 그대로
+  # 두면 팀이 쓰는 DB 에 local-only-throwaway-key 로 암호문을 쓰게 된다. 다시 필수로 만든다.
+  # ---------------------------------------------------------------------------
   server:
     environment:
+      DB_NAME: ${DB_NAME:?.env.tunnel 에 DB_NAME 이 필요합니다}
+      DB_USERNAME: ${DB_USERNAME:?.env.tunnel 에 DB_USERNAME 이 필요합니다}
+      DB_PASSWORD: ${DB_PASSWORD:?.env.tunnel 에 DB_PASSWORD 가 필요합니다}
+      # 이미 저장된 암호문이 이 키로 암호화돼 있다. 값이 다르면 복호화할 수 없다.
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:?.env.tunnel 에 DB_ENCRYPTION_KEY 가 필요합니다}
       # 리모트 Tmax OpenSQL 에는 OpenCrypto 가 있으므로 ARIA-256 을 쓴다.
       DB_ENCRYPTION_CIPHER: ${DB_ENCRYPTION_CIPHER:-aria256}
       # base 는 빈 컨테이너 DB 를 전제로 자동 적용을 켠다. 여기는 공유 DB 라 그대로 두면
       # 스택을 올리는 것만으로 팀 전체의 스키마가 바뀐다. 적용은 사람이 한다.
       # 적용할 때만 SPRING_FLYWAY_ENABLED=true 로 켠다(docs/DEVELOPMENT.md).
       SPRING_FLYWAY_ENABLED: "false"
+
+  relay:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:?.env.tunnel 에 DB_NAME 이 필요합니다}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:?.env.tunnel 에 DB_USERNAME 이 필요합니다}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?.env.tunnel 에 DB_PASSWORD 가 필요합니다}
+
+  worker:
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:?.env.tunnel 에 DB_NAME 이 필요합니다}
+      DB_USERNAME: ${DB_USERNAME:?.env.tunnel 에 DB_USERNAME 이 필요합니다}
+      DB_PASSWORD: ${DB_PASSWORD:?.env.tunnel 에 DB_PASSWORD 가 필요합니다}

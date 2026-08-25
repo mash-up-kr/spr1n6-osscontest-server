@@ -1,9 +1,9 @@
 .git
 .gradle
 build
-.env
-.env.local
-.env.integration
+# 빌드에 쓰이지 않는다. 예외를 두면 파일이 늘어날 때마다 여기를 고쳐야 하고,
+# 고치는 것을 잊는 순간 비밀값이 빌더로 넘어간다.
+.env*
 .idea
 *.iml
 docker-compose*.yml
