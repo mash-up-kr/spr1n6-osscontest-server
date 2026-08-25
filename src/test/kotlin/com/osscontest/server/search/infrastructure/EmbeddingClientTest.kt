@@ -6,6 +6,7 @@ import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.search.config.SearchProperties
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.ai.embedding.EmbeddingModel
@@ -18,6 +19,7 @@ class EmbeddingClientTest {
     private val client = EmbeddingClient(
         embeddingModel = embeddingModel,
         searchProperties = SearchProperties(embedding = SearchProperties.Embedding(dimensions = EMBEDDING_DIMENSIONS)),
+        cache = QueryEmbeddingCache(),
     )
 
     @Test
@@ -30,6 +32,18 @@ class EmbeddingClientTest {
         assertEquals(EMBEDDING_DIMENSIONS, vector.size)
         assertEquals(0.1f, vector.first())
         verify(embeddingModel).embed("위약금")
+    }
+
+    @Test
+    fun `같은 질의는 캐시에서 반환하고 API를 다시 부르지 않는다`() {
+        val expected = FloatArray(EMBEDDING_DIMENSIONS) { 0.2f }
+        whenever(embeddingModel.embed("위약금")).thenReturn(expected)
+
+        val first = client.embed("위약금")
+        val second = client.embed("위약금")
+
+        assertEquals(first, second)
+        verify(embeddingModel, times(1)).embed("위약금")
     }
 
     @Test

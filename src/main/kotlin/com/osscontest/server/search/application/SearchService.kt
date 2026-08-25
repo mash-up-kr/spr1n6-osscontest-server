@@ -50,8 +50,10 @@ class SearchService(
     }
 
     companion object {
-        // 실제 데이터 규모에서 EXPLAIN ANALYZE로 검증한 뒤 변경 예정
-        private const val DEFAULT_EF_SEARCH = 100
+        // dev 데이터(문서 123개, 청크 28,561개) 기준으로 27개 QA 세트를 40~500까지 스윕해
+        // 검증했다 — Recall@10/MRR이 전 구간에서 동일해 이 규모에서는 40 이상 올려도
+        // 이득이 없다. 코퍼스가 훨씬 커지면 재검증이 필요하다.
+        private const val DEFAULT_EF_SEARCH = 40
     }
 }
 
