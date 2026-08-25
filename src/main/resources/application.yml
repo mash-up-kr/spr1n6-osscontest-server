@@ -52,7 +52,10 @@ search:
   default-context-window: 0
   min-context-window: 0
   max-context-window: 5
-  min-ef-search: 1
-  max-ef-search: 500
   embedding:
     dimensions: 1536
+  rerank:
+    candidate-pool-size: 30
+    cohere:
+      api-key: ${COHERE_API_KEY:}
+      model: ${COHERE_RERANK_MODEL:rerank-v3.5}

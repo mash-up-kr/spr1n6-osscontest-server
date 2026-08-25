@@ -1,8 +1,12 @@
 package com.osscontest.server.search.infrastructure
 
+import com.osscontest.server.search.config.SearchProperties
 import com.osscontest.server.search.domain.Bm25Scorer
+import com.osscontest.server.search.domain.RerankCandidate
+import com.osscontest.server.search.domain.Reranker
 import com.osscontest.server.search.domain.SearchOptions
 import com.osscontest.server.search.domain.SearchResultItem
+import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
@@ -24,7 +28,10 @@ class SearchChunkRepository(
     private val jdbcTemplate: NamedParameterJdbcTemplate,
     private val noriTokenizer: NoriTokenizer,
     private val corpusStatsCache: CorpusStatsCache,
+    private val reranker: Reranker,
+    private val searchProperties: SearchProperties,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional(readOnly = true)
     fun hybridSearch(
@@ -34,11 +41,11 @@ class SearchChunkRepository(
         queryEmbedding: List<Float>,
         options: SearchOptions,
     ): List<SearchResultItem> {
-        // options.efSearch는 SearchService에서 Int로 clamp된 값이라 문자열 보간에 사용자 입력이
-        // 직접 섞이지 않는다. SET 문은 파라미터 바인딩을 지원하지 않아 문자열로 조립해야 한다.
-        // SET LOCAL은 트랜잭션 스코프에서만 유효해 @Transactional이 반드시 있어야 하고,
-        // 없으면 이 설정이 조용히 무시되고 커넥션 풀 재사용 시 다음 요청으로 값이 샐 수 있다.
-        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.ef_search = ${options.efSearch}")
+        // SET 문은 파라미터 바인딩을 지원하지 않아 문자열로 조립해야 하는데, EF_SEARCH가
+        // 상수라 사용자 입력이 섞일 여지가 없다. SET LOCAL은 트랜잭션 스코프에서만 유효해
+        // @Transactional이 반드시 있어야 하고, 없으면 이 설정이 조용히 무시되고 커넥션 풀
+        // 재사용 시 다음 요청으로 값이 샐 수 있다.
+        jdbcTemplate.jdbcOperations.execute("SET LOCAL hnsw.ef_search = $EF_SEARCH")
 
         val vectorRanks = vectorSearch(tenantId, userId, queryEmbedding)
         val keywordRanks = keywordSearch(tenantId, userId, queryText)
@@ -46,10 +53,34 @@ class SearchChunkRepository(
         val rrfScores = (vectorRanks.keys + keywordRanks.keys).associateWith { id ->
             rrfContribution(vectorRanks[id]) + rrfContribution(keywordRanks[id])
         }
-        val topIds = rrfScores.entries.sortedByDescending { it.value }.take(options.topK).map { it.key }
+        // 재정렬을 쓰면 RRF만으로는 topK 밖일 후보도 재정렬 대상에 들어올 수 있게 더 넓게 뽑는다.
+        val fetchLimit = if (options.rerank) {
+            maxOf(options.topK, searchProperties.rerank.candidatePoolSize)
+        } else {
+            options.topK
+        }
+        val topIds = rrfScores.entries.sortedByDescending { it.value }.take(fetchLimit).map { it.key }
         if (topIds.isEmpty()) return emptyList()
 
-        return fetchDetails(topIds, options.contextWindow, rrfScores)
+        val items = fetchDetails(topIds, options.contextWindow, rrfScores)
+        val ordered = if (options.rerank) rerank(queryText, items) else items
+        return ordered.take(options.topK)
+    }
+
+    // 리랭킹 실패(API 오류, 응답 파싱 실패 등)는 검색 자체를 실패시키지 않고 RRF 순서로 대체한다(fail-open).
+    // 재정렬 결과가 후보 일부만 포함해도 나머지는 원래 RRF 순서로 뒤에 채운다.
+    private fun rerank(queryText: String, items: List<SearchResultItem>): List<SearchResultItem> {
+        val candidates = items.map { RerankCandidate(it.chunkId, it.content) }
+        val rerankedIds = try {
+            reranker.rerank(queryText, candidates)
+        } catch (e: Exception) {
+            log.warn("리랭킹 실패, RRF 순서로 대체합니다", e)
+            return items
+        }
+        val byId = items.associateBy { it.chunkId }
+        val covered = rerankedIds.toSet()
+        val remaining = items.filter { it.chunkId !in covered }
+        return rerankedIds.mapNotNull { byId[it] } + remaining
     }
 
     private fun rrfContribution(rank: Int?): Double = if (rank == null) 0.0 else 1.0 / (RRF_K + rank)
@@ -152,6 +183,11 @@ class SearchChunkRepository(
     }
 
     companion object {
+        // HNSW 탐색 폭. 요청 파라미터로 열어뒀던 적이 있었는데, 값별 트레이드오프를 우리
+        // 데이터로 제대로 스윕해보지 않은 채였다 — 그때 쓰던 기본값을 상수로 고정했다.
+        // ANN이 exact와 얼마나 겹치는지는 40에서 평균 84%, 200에서도 96%에 그친다(recall_benchmark.py).
+        private const val EF_SEARCH = 100
+
         // 벡터/키워드 각 순위 목록에서 RRF 후보로 넘길 상위 건수. 늘리면 recall은 오르지만
         // 두 CTE가 그만큼 더 넓게 정렬해야 해 지연이 늘어난다.
         private const val RRF_CANDIDATE_LIMIT = 50

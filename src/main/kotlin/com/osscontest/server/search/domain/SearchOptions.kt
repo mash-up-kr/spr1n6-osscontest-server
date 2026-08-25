@@ -6,5 +6,5 @@ package com.osscontest.server.search.domain
 data class SearchOptions(
     val topK: Int,
     val contextWindow: Int,
-    val efSearch: Int,
+    val rerank: Boolean,
 )
