@@ -24,6 +24,27 @@ PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문�
 
 데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다.
 
+<br>
+
+시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
+
+```mermaid
+flowchart LR
+    web[web] -->|업로드| server[server]
+    server -->|Outbox| relay[relay]
+    relay -->|Kafka| worker[worker]
+    worker -->|청크·임베딩 저장| server
+```
+
+| 저장소 | 역할 |
+|---|---|
+| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 Outbox 이벤트를 남깁니다 |
+| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Outbox 행을 읽어 카프카로 발행합니다 |
+| [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | 문서를 청크로 나누고 임베딩해 저장합니다 |
+| [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
+
+이 저장소는 `server`입니다.
+
 ---
 
 ## 핵심 기능
@@ -142,7 +163,7 @@ docker compose down -v     # 데이터까지 지웁니다
 | `list_documents` | 테넌트에 속한 문서 목록을 커서 기반 페이지네이션으로 조회합니다 |
 | `get_document` | `documentId`로 검색 없이 문서 상세를 바로 조회합니다 |
 
-파라미터는 [API 명세 10장](docs/API-SPEC.md)에 있습니다.
+파라미터는 [API 명세 10장](docs/API_SPEC.md)에 있습니다.
 
 ### 사용법
 
@@ -167,27 +188,6 @@ MCP 클라이언트 설정에 엔드포인트와 인증 헤더를 등록합니�
 
 ---
 
-## 저장소 구성
-
-시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
-
-```
-web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka──▶  worker
-                    ▲                                        │
-                    └────────── 청크·임베딩 저장 ─────────────┘
-```
-
-| 저장소 | 역할 |
-|---|---|
-| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 Outbox 이벤트를 남깁니다 |
-| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Outbox 행을 읽어 카프카로 발행합니다 |
-| [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | 문서를 청크로 나누고 임베딩해 저장합니다 |
-| [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
-
-이 저장소는 `server`입니다.
-
----
-
 ## 기술 스택
 
 | 구분         | 기술                          | 버전     |
@@ -209,7 +209,7 @@ web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka
 - [개발 가이드](docs/DEVELOPMENT.md) — 프로파일별 개발 방식, 마이그레이션, 환경 변수
 - [검색 설계와 평가](docs/SEARCH.md) — 하이브리드 검색 설계, 평가 방법, 고도화 결과
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
-- [API 명세](docs/API-SPEC.md)
+- [API 명세](docs/API_SPEC.md)
 
 ---
 
