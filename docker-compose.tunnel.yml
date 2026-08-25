@@ -59,3 +59,7 @@ services:
     environment:
       # 리모트 Tmax OpenSQL 에는 OpenCrypto 가 있으므로 ARIA-256 을 쓴다.
       DB_ENCRYPTION_CIPHER: ${DB_ENCRYPTION_CIPHER:-aria256}
+      # base 는 빈 컨테이너 DB 를 전제로 자동 적용을 켠다. 여기는 공유 DB 라 그대로 두면
+      # 스택을 올리는 것만으로 팀 전체의 스키마가 바뀐다. 적용은 사람이 한다.
+      # 적용할 때만 SPRING_FLYWAY_ENABLED=true 로 켠다(docs/DEVELOPMENT.md).
+      SPRING_FLYWAY_ENABLED: "false"
