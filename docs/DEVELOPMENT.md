@@ -188,37 +188,8 @@ ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 Post
 
 ---
 
-## 협업 규칙
-
-### 브랜치
-
-| 브랜치 | 용도 |
-|---|---|
-| `main` | 통합 브랜치 |
-| `feat/*` | 기능 개발 |
-| `fix/*` | 버그 수정 |
-| `refactor/*` | 리팩터링 |
-| `docs/*` | 문서 작업 |
-| `chore/*` | 설정, 빌드, 의존성 |
-
-작업 브랜치는 `main`에서 분기하고, 완료 후 PR로 `main`에 머지합니다.
-
-### 커밋 메시지
-
-제목은 `<type>: <subject>` 형식을 따릅니다. 바디는 자유롭게 작성합니다.
-
-```
-feat: 문서 업로드 API 구현
-fix: 대용량 PDF 파싱 시 OOM 수정
-docs: README 프로파일 구성 추가
-refactor: DocumentService 책임 분리
-test: 문서 검색 통합 테스트 추가
-chore: Spring Boot 4.1.0 업그레이드
-```
-
----
-
 ## 관련 문서
 
+- [기여 안내](../CONTRIBUTING.md) — 브랜치, 커밋 메시지, PR
 - [코드 컨벤션](CODE_CONVENTIONS.md)
 - [API 설계](API-DESIGN.md)
