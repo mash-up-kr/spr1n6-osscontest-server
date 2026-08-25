@@ -56,11 +56,13 @@ curl localhost:8080/actuator/health
 이 프로젝트에는 토큰 발급이 없고 `X-User-Id` 헤더로 신원을 받습니다. 데모 사용자를 넣지 않으면 모든 요청이 401로 실패합니다.
 
 ```bash
-docker compose exec -T db psql -U aidocs -d aidocs \
-  -v key=local-only-throwaway-key -v cipher=aes256 < scripts/seed-demo.sql
+docker compose exec -T db psql \
+  -U "${DB_USERNAME:-aidocs}" -d "${DB_NAME:-aidocs}" \
+  -v key="${DB_ENCRYPTION_KEY:-local-only-throwaway-key}" -v cipher=aes256 \
+  < scripts/seed-demo.sql
 ```
 
-여러 번 실행해도 안전합니다. `.env`에서 `DB_ENCRYPTION_KEY`나 `DB_USERNAME`을 바꿨다면 그 값으로 맞춰 주세요.
+여러 번 실행해도 안전합니다. `.env`에 값을 채웠다면 `set -a; . ./.env; set +a` 로 불러온 뒤 실행하거나, 위 명령의 기본값 자리에 그 값을 직접 적어 주세요.
 
 ### 접속
 
