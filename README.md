@@ -24,6 +24,25 @@ PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문�
 
 데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다.
 
+<br>
+
+시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
+
+```
+web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka──▶  worker
+                    ▲                                        │
+                    └────────── 청크·임베딩 저장 ─────────────┘
+```
+
+| 저장소 | 역할 |
+|---|---|
+| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 Outbox 이벤트를 남깁니다 |
+| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Outbox 행을 읽어 카프카로 발행합니다 |
+| [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | 문서를 청크로 나누고 임베딩해 저장합니다 |
+| [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
+
+이 저장소는 `server`입니다.
+
 ---
 
 ## 핵심 기능
@@ -164,27 +183,6 @@ MCP 클라이언트 설정에 엔드포인트와 인증 헤더를 등록합니�
 - `X-Search-User-Id` 헤더로 테넌트를 식별하므로 반드시 넣어야 합니다. 값이 없거나 숫자가 아니면 인증 실패로 응답합니다. REST API가 쓰는 `X-User-Id`와는 다른 헤더입니다.
 
 연결하면 LLM이 자연어 요청(예: "예산 관련 문서 찾아줘")을 알아서 도구 호출로 바꿔 씁니다.
-
----
-
-## 저장소 구성
-
-시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
-
-```
-web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka──▶  worker
-                    ▲                                        │
-                    └────────── 청크·임베딩 저장 ─────────────┘
-```
-
-| 저장소 | 역할 |
-|---|---|
-| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 Outbox 이벤트를 남깁니다 |
-| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Outbox 행을 읽어 카프카로 발행합니다 |
-| [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | 문서를 청크로 나누고 임베딩해 저장합니다 |
-| [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
-
-이 저장소는 `server`입니다.
 
 ---
 
