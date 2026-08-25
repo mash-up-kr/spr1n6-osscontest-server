@@ -154,6 +154,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?.env 에 OPENAI_API_KEY 가 필요합니다}
       # web 은 컨테이너가 아니라 호스트에서 뜨므로 호스트 origin 을 허용한다.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      # 검색 결과 재정렬(Cohere Rerank). COHERE_API_KEY 가 있어야 한다.
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
     ports:
       - "${SERVER_HOST_PORT:-8080}:8080"
     healthcheck:

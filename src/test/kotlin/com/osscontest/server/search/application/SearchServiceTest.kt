@@ -124,46 +124,24 @@ class SearchServiceTest {
     }
 
     @Test
-    fun `efSearch를 지정하지 않으면 기본값 100을 쓴다`() {
+    fun `rerank를 지정하지 않으면 false를 쓴다`() {
         val (service, _, repository) = newService()
 
         service.search(user, SearchRequest(query = "위약금"))
 
         val optionsCaptor = argumentCaptor<SearchOptions>()
         verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(100, optionsCaptor.firstValue.efSearch)
+        assertEquals(false, optionsCaptor.firstValue.rerank)
     }
 
     @Test
-    fun `efSearch를 지정하면 그대로 전달된다`() {
+    fun `rerank를 지정하면 그대로 전달된다`() {
         val (service, _, repository) = newService()
 
-        service.search(user, SearchRequest(query = "위약금", efSearch = 200))
+        service.search(user, SearchRequest(query = "위약금", rerank = true))
 
         val optionsCaptor = argumentCaptor<SearchOptions>()
         verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(200, optionsCaptor.firstValue.efSearch)
-    }
-
-    @Test
-    fun `efSearch가 상한을 넘으면 최대값으로 clamp 된다`() {
-        val (service, _, repository) = newService()
-
-        service.search(user, SearchRequest(query = "위약금", efSearch = 100_000))
-
-        val optionsCaptor = argumentCaptor<SearchOptions>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(properties.maxEfSearch, optionsCaptor.firstValue.efSearch)
-    }
-
-    @Test
-    fun `efSearch가 topK보다 작으면 topK로 올라간다`() {
-        val (service, _, repository) = newService()
-
-        service.search(user, SearchRequest(query = "위약금", topK = 30, efSearch = 5))
-
-        val optionsCaptor = argumentCaptor<SearchOptions>()
-        verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(30, optionsCaptor.firstValue.efSearch)
+        assertEquals(true, optionsCaptor.firstValue.rerank)
     }
 }

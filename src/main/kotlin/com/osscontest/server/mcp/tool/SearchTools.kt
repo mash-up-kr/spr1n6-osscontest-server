@@ -50,16 +50,14 @@ class SearchTools(
         @McpToolParam(description = "매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함)", required = false)
         contextWindow: Int?,
         @McpToolParam(
-            description = "검색 정확도와 속도의 트레이드오프(HNSW 탐색 폭). 기본 100, 1~500 범위. " +
-                "클수록 정확하지만 느려지고 작을수록 빠르지만 놓치는 결과가 늘어난다. " +
-                "'정확하게'/'꼼꼼하게' 요청이면 크게(예: 200~500), " +
-                "'빠르게' 요청이면 작게(예: 10~50) 설정한다.",
+            description = "결과를 재정렬 모델(Cohere Rerank)로 한 번 더 다듬을지 여부. 기본 false. " +
+                "정확도가 중요한 요청('정확하게'/'꼼꼼하게' 찾아줘)이면 true로 설정한다 — 대신 지연시간이 늘어난다.",
             required = false,
         )
-        efSearch: Int?,
+        rerank: Boolean?,
         requestContext: McpSyncRequestContext,
     ): List<SearchResultItem> =
-        searchService.search(resolveAuthContext(requestContext), SearchRequest(query, topK, contextWindow, efSearch))
+        searchService.search(resolveAuthContext(requestContext), SearchRequest(query, topK, contextWindow, rerank))
 
     @McpTool(
         name = "list_documents",

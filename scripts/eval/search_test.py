@@ -4,25 +4,24 @@ qa_set.json의 질의를 실제 Server의 POST /api/v1/search에 태워 Recall@1
 
 사용법:
     ./gradlew bootRun --args='--spring.profiles.active=local --server.port=18081' &
-    python3 scripts/eval/search_test.py            # 기본 ef_search
-    python3 scripts/eval/search_test.py 100         # ef_search=100으로 강제
+    python3 scripts/eval/search_test.py            # rerank 없이
+    SEARCH_RERANK=true python3 scripts/eval/search_test.py   # rerank:true로 요청
 """
 import json
 import os
-import sys
 import time
 import urllib.request
 
 QA_SET_PATH = os.path.join(os.path.dirname(__file__), "qa_set.json")
 API_URL = os.environ.get("SEARCH_API_URL", "http://localhost:18081/api/v1/search")
 EVAL_USER_ID = os.environ.get("EVAL_USER_ID", "1")
-EF_SEARCH = int(sys.argv[1]) if len(sys.argv) > 1 else None
+RERANK = os.environ.get("SEARCH_RERANK", "").lower() in ("1", "true", "yes")
 
 
 def search(query: str, top_k: int = 10):
     payload = {"query": query, "topK": top_k}
-    if EF_SEARCH is not None:
-        payload["efSearch"] = EF_SEARCH
+    if RERANK:
+        payload["rerank"] = True
     req = urllib.request.Request(
         API_URL,
         data=json.dumps(payload).encode(),
@@ -51,7 +50,7 @@ def main():
     hits = 0
     reciprocal_ranks = []
     latencies = []
-    print(f"# 질의 {len(qa_pairs)}건 평가 (topK=10, efSearch={EF_SEARCH or '서버 기본값'}, {API_URL})\n")
+    print(f"# 질의 {len(qa_pairs)}건 평가 (topK=10, rerank={RERANK}, {API_URL})\n")
     for i, qa in enumerate(qa_pairs, 1):
         ids, ms = search(qa["question"])
         latencies.append(ms)
