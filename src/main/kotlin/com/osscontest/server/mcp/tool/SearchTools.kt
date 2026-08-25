@@ -79,7 +79,7 @@ class SearchTools(
         @McpToolParam(description = "문서 제목 검색어. 지정하면 제목에 포함된 문서만 반환한다", required = false)
         q: String?,
         @McpToolParam(
-            description = "최신 버전의 인덱싱 상태로 필터링. PENDING/IN_PROGRESS/COMPLETED/FAILED 중 하나",
+            description = "최신 버전의 인덱싱 상태로 필터링. PENDING/PROCESSING/RETRY_WAIT/COMPLETED/FAILED 중 하나",
             required = false,
         )
         indexingStatus: String?,

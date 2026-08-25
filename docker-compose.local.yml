@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.1-pg17
     container_name: aidocs-postgres
     restart: unless-stopped
     environment:

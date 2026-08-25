@@ -1,9 +1,9 @@
-# API 설계 초안
+# API 명세
 
-| 항목        | 값                                |
-|-----------|----------------------------------|
-| 기준 마이그레이션 | `V20260812_001__init_schema.sql` |
-| 작성일       | 2026-08-15                       |
+| 항목        | 값                                        |
+|-----------|------------------------------------------|
+| 기준 마이그레이션 | `V20260823_002__add_worker_indexing_fields.sql` |
+| 최종 수정     | 2026-08-26                               |
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 2. 결정 사항
 
-- **업로드는 `multipart/form-data`로 서버를 거칩니다.** presigned URL 2단계는 보류했습니다.
+- **업로드는 `multipart/form-data`로 서버를 거칩니다.**
 - **파일은 20MB 까지, PDF · DOCX · Markdown · HWP · TXT 만 받습니다.** 크기를 넘으면 `413`,
   형식이 다르면 `415` 입니다.
 - **허용 형식은 확장자로 판정합니다.** HWP 는 표준 MIME 이 없어 클라이언트가 보내는 값이
@@ -82,30 +82,54 @@ GET /api/v1/documents?limit=20&cursor=eyJpZCI6NDJ9
 | `409` | 임베딩이 실패하지 않은 버전에 재인덱싱을 요청하는 등 상태 충돌 |
 | `413` | 파일 크기 초과                            |
 | `415` | 지원하지 않는 형식                          |
+| `500` | 서버 내부 오류                            |
+| `502` | 임베딩 등 외부 연동 실패                      |
+
+응답의 `code`는 다음 중 하나입니다. 클라이언트는 상태 코드가 아니라 이 값으로 분기합니다.
+
+| `code`                             | 상태    | 뜻                                 |
+|------------------------------------|-------|-----------------------------------|
+| `INVALID_REQUEST`                  | `400` | 요청 형식이 올바르지 않음                    |
+| `EMPTY_FILE`                       | `400` | 빈 파일 업로드                          |
+| `INVALID_QUERY`                    | `400` | 검색 질의문이 비어 있음                     |
+| `PRINCIPAL_NOT_FOUND`              | `400` | 권한을 부여할 대상이 없음                    |
+| `OWNER_PERMISSION_NOT_REVOCABLE`   | `400` | 소유자 권한은 회수할 수 없음                  |
+| `UNAUTHENTICATED`                  | `401` | 인증 정보가 올바르지 않음                    |
+| `FORBIDDEN`                        | `403` | 해당 문서에 대한 권한이 없음                  |
+| `DOCUMENT_NOT_FOUND`               | `404` | 문서를 찾을 수 없음                       |
+| `DOCUMENT_VERSION_NOT_FOUND`       | `404` | 문서 버전을 찾을 수 없음                    |
+| `PERMISSION_NOT_FOUND`             | `404` | 문서에 부여된 권한을 찾을 수 없음               |
+| `SEARCHABLE_VERSION_NOT_READY`     | `409` | 인덱싱이 끝난 버전만 검색 대상으로 지정 가능        |
+| `INDEXING_RETRY_NOT_ALLOWED`       | `409` | 실패 상태인 작업만 재시도 가능                 |
+| `INDEXING_RETRY_ALREADY_REQUESTED` | `409` | 이미 대기 중인 재인덱싱 요청이 있음              |
+| `UNSUPPORTED_FILE_TYPE`            | `415` | 지원하지 않는 파일 형식                     |
+| `INTERNAL_ERROR`                   | `500` | 서버 오류                             |
+| `UPSTREAM_ERROR`                   | `502` | 검색어 처리 중 오류                       |
 
 ---
 
 ## 4. 엔드포인트 목록
 
-| 메서드      | 경로                                                                         | 우선 |
-|----------|----------------------------------------------------------------------------|----|
-| `POST`   | `/api/v1/documents`                                                        | P0 |
-| `GET`    | `/api/v1/documents`                                                        | P0 |
-| `GET`    | `/api/v1/documents/{documentId}`                                           | P0 |
-| `DELETE` | `/api/v1/documents/{documentId}`                                           | P1 |
-| `PATCH`  | `/api/v1/documents/{documentId}`                                           | P2 |
-| `POST`   | `/api/v1/documents/{documentId}/versions`                                  | P1 |
-| `GET`    | `/api/v1/documents/{documentId}/versions`                                  | P1 |
-| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}`                      | P2 |
-| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/content`              | P1 |
-| `PUT`    | `/api/v1/documents/{documentId}/searchable-version`                        | P2 |
-| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing`             | P0 |
-| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/events`      | P0 |
-| `POST`   | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry`       | P1 |
-| `POST`   | `/api/v1/search`                                                           | P0 |
-| `GET`    | `/api/v1/documents/{documentId}/permissions`                               | P2 |
-| `PUT`    | `/api/v1/documents/{documentId}/permissions`                               | P2 |
-| `DELETE` | `/api/v1/documents/{documentId}/permissions/{principalType}/{principalId}` | P2 |
+| 메서드      | 경로                                                                         |
+|----------|----------------------------------------------------------------------------|
+| `POST`   | `/api/v1/documents`                                                        |
+| `GET`    | `/api/v1/documents`                                                        |
+| `GET`    | `/api/v1/documents/{documentId}`                                           |
+| `PATCH`  | `/api/v1/documents/{documentId}`                                           |
+| `DELETE` | `/api/v1/documents/{documentId}`                                           |
+| `POST`   | `/api/v1/documents/{documentId}/versions`                                  |
+| `GET`    | `/api/v1/documents/{documentId}/versions`                                  |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}`                      |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/content`              |
+| `PUT`    | `/api/v1/documents/{documentId}/searchable-version`                        |
+| `GET`    | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing`             |
+| `POST`   | `/api/v1/documents/{documentId}/versions/{versionNo}/indexing/retry`       |
+| `POST`   | `/api/v1/search`                                                           |
+| `GET`    | `/api/v1/documents/{documentId}/permissions`                               |
+| `PUT`    | `/api/v1/documents/{documentId}/permissions`                               |
+| `DELETE` | `/api/v1/documents/{documentId}/permissions/{principalType}/{principalId}` |
+
+MCP 도구는 10장에 있습니다.
 
 ---
 
@@ -543,3 +567,50 @@ DELETE /api/v1/documents/{documentId}/permissions/{principalType}/{principalId}
 ```
 
 `403` `404`
+
+---
+
+## 10. MCP 도구
+
+AI 클라이언트가 붙어 쓰는 인터페이스입니다. 엔드포인트는 `/mcp`이고 Streamable HTTP 로 통신합니다.
+
+REST 와 같은 권한 검사를 거칩니다. 다만 신원은 `X-Search-User-Id` 헤더로 받습니다. REST 의 `X-User-Id` 와는 다른 헤더이며, 값이 없거나 숫자가 아니면 인증 실패로 응답합니다. 도구가 돌려주는 문서는 그 사용자가 REST 로 조회했을 때 볼 수 있는 것과 같습니다.
+
+세 도구 모두 읽기 전용입니다. 문서를 만들거나 고치거나 지우지 않습니다.
+
+### search_documents
+
+질의어로 문서를 검색합니다. 매칭된 청크와 앞뒤 문맥, 소속 문서 정보를 함께 돌려줍니다.
+
+| 파라미터            | 타입     | 필수 | 설명                                       |
+|-----------------|--------|:--:|------------------------------------------|
+| `query`         | string | O  | 검색 질의문                                   |
+| `topK`          | int    | X  | 반환할 최대 결과 수 (기본 10, 최대 50)               |
+| `contextWindow` | int    | X  | 매칭 청크 앞뒤로 함께 반환할 청크 수 (기본 0, 최대 5)       |
+| `efSearch`      | int    | X  | HNSW 탐색 폭 (기본 100, 1~500). 클수록 정확하고 느립니다 |
+
+응답은 `POST /api/v1/search` 의 결과 배열과 같은 형태입니다.
+
+### list_documents
+
+테넌트에 속한 문서 목록을 조회합니다. 커서 기반 페이지네이션을 지원합니다.
+
+| 파라미터             | 타입      | 필수 | 설명                                                    |
+|------------------|---------|:--:|-------------------------------------------------------|
+| `limit`          | int     | X  | 반환할 최대 문서 수 (기본 20, 최대 100)                           |
+| `cursor`         | string  | X  | 이전 응답의 `nextCursor`                                   |
+| `q`              | string  | X  | 제목 검색어                                                |
+| `indexingStatus` | string  | X  | 최신 버전의 인덱싱 상태로 필터 (`PENDING`/`PROCESSING`/`RETRY_WAIT`/`COMPLETED`/`FAILED`) |
+| `searchable`     | boolean | X  | 검색 대상 버전이 지정된 문서만 거를지 여부                              |
+
+응답은 `GET /api/v1/documents` 와 같은 형태입니다.
+
+### get_document
+
+`documentId` 로 문서 상세를 직접 조회합니다. 검색을 거치지 않습니다.
+
+| 파라미터         | 타입   | 필수 | 설명     |
+|--------------|------|:--:|--------|
+| `documentId` | long | O  | 문서 식별자 |
+
+응답은 `GET /api/v1/documents/{documentId}` 와 같은 형태입니다.

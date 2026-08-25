@@ -19,7 +19,10 @@ services:
   db:
     # pgvector 가 들어 있는 이미지다. init_schema 가 CREATE EXTENSION vector 를 실행하므로
     # 맨 PostgreSQL 이미지로는 마이그레이션이 실패한다.
-    image: pgvector/pgvector:pg17
+    #
+    # 태그를 pg17 로 두면 pg17 최신을 따라가 운영(PostgreSQL 17.8, pgvector 0.8.1)과 어긋난다.
+    # 0.8.1-pg17 은 두 버전이 모두 운영과 같다.
+    image: pgvector/pgvector:0.8.1-pg17
     container_name: aidocs-it-db
     restart: unless-stopped
     environment:

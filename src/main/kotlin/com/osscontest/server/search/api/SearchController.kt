@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
-/** docs/API-DESIGN.md 8장. */
+/** docs/API-SPEC.md 8장. */
 @RestController
 @RequestMapping("/api/v1/search")
 class SearchController(

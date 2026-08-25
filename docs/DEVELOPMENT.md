@@ -18,7 +18,7 @@
 
 ## local 프로파일
 
-Docker로 PostgreSQL 17.8과 MinIO를 띄우고 애플리케이션이 여기에 접속합니다. 과제 환경과 동일한 버전으로 고정되어 있습니다.
+Docker로 PostgreSQL 17.8과 MinIO를 띄우고 애플리케이션이 여기에 접속합니다. 이미지 태그를 `0.8.1-pg17`로 고정해 운영(Tmax OpenSQL v3.0, PostgreSQL 17.8 기반 + pgvector 0.8.1)과 같은 버전을 씁니다.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d
@@ -134,7 +134,7 @@ docker compose -f docker-compose.yml -f docker-compose.tunnel.yml \
 
 | 항목 | `local` | `dev` |
 |---|---|---|
-| DB | Docker PostgreSQL 17.8 | 공유 Tmax OpenSQL v3.0 |
+| DB | Docker PostgreSQL 17.8 + pgvector 0.8.1 | 공유 Tmax OpenSQL v3.0 + pgvector 0.8.1 |
 | 접속 경로 | 직접 | SSH 터널 |
 | 접속 정보 | `application-local.yml` | `.env` |
 | 암호화 알고리즘 | AES-256 | ARIA-256 |
@@ -220,5 +220,6 @@ chore: Spring Boot 4.1.0 업그레이드
 
 ## 관련 문서
 
+- [기여 안내](../CONTRIBUTING.md) — 브랜치, 커밋 메시지, PR
 - [코드 컨벤션](CODE_CONVENTIONS.md)
-- [API 설계](API-DESIGN.md)
+- [API 명세](API-SPEC.md)
