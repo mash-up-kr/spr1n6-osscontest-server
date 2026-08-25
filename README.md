@@ -28,10 +28,12 @@ PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문�
 
 시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
 
-```
-web  ──업로드──▶  server  ──Outbox──▶  relay  ──Kafka──▶  worker
-                    ▲                                        │
-                    └────────── 청크·임베딩 저장 ─────────────┘
+```mermaid
+flowchart LR
+    web[web] -->|업로드| server[server]
+    server -->|Outbox| relay[relay]
+    relay -->|Kafka| worker[worker]
+    worker -->|청크·임베딩 저장| server
 ```
 
 | 저장소 | 역할 |
