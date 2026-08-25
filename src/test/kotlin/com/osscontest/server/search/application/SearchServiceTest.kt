@@ -124,14 +124,14 @@ class SearchServiceTest {
     }
 
     @Test
-    fun `efSearch를 지정하지 않으면 기본값 40을 쓴다`() {
+    fun `efSearch를 지정하지 않으면 기본값 100을 쓴다`() {
         val (service, _, repository) = newService()
 
         service.search(user, SearchRequest(query = "위약금"))
 
         val optionsCaptor = argumentCaptor<SearchOptions>()
         verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(40, optionsCaptor.firstValue.efSearch)
+        assertEquals(100, optionsCaptor.firstValue.efSearch)
     }
 
     @Test

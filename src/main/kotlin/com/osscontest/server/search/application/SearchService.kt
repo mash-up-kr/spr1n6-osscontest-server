@@ -50,10 +50,8 @@ class SearchService(
     }
 
     companion object {
-        // dev 데이터(문서 123개, 청크 28,561개) 기준으로 27개 QA 세트를 40~500까지 스윕해
-        // 검증했다 — Recall@10/MRR이 전 구간에서 동일해 이 규모에서는 40 이상 올려도
-        // 이득이 없다. 코퍼스가 훨씬 커지면 재검증이 필요하다.
-        private const val DEFAULT_EF_SEARCH = 40
+        // 순수 벡터 근사 품질(ANN이 exact와 얼마나 겹치는지)은 ef_search=40에서 평균 84%, 200에서도 96%에 그친다.
+        private const val DEFAULT_EF_SEARCH = 100
     }
 }
 
