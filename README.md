@@ -12,20 +12,6 @@
 
 ---
 
-## 기술 스택
-
-| 구분         | 기술                          | 버전     |
-|------------|-----------------------------|--------|
-| Language   | Kotlin                      | 2.3    |
-| Runtime    | Java (JVM)                  | 21 LTS |
-| Framework  | Spring Boot                 | 4.1.0  |
-| ORM        | Spring Data JPA / Hibernate | 7.x    |
-| Build      | Gradle (Kotlin DSL)         | 9.x    |
-| DB (dev)   | Tmax OpenSQL                | v3.0   |
-| DB (local) | PostgreSQL                  | 17.8   |
-| Driver     | PostgreSQL JDBC             | 42.7.x |
-
----
 
 ## 시작하기
 
