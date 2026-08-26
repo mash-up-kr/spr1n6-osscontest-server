@@ -24,6 +24,10 @@ PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문�
 
 데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다.
 
+![문서 목록 화면](docs/images/documents.png)
+
+올린 문서의 인덱싱 상태와 현재 검색 대상 버전을 목록에서 바로 확인합니다.
+
 ![검색 화면](docs/images/search.png)
 
 자연어로 물으면 관련된 대목을 결합 검색 점수 순으로 돌려줍니다.
