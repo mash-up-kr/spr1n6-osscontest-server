@@ -1,5 +1,7 @@
 # Tmax OpenSQL 기반 AI 문서 관리 시스템
 
+**한국어** | [English](README.en.md)
+
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.0-6DB33F?logo=springboot&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-21_LTS-437291?logo=openjdk&logoColor=white)
@@ -55,9 +57,9 @@ flowchart LR
 
 찾은 대목의 앞뒤 문단을 함께 돌려주는 옵션이 있습니다. 문단 하나만 떼어 보면 맥락을 알 수 없는 경우가 많기 때문입니다.
 
-![검색 화면](docs/images/search.png)
-
 자세한 설계와 평가 과정은 [검색 설계와 평가](docs/SEARCH.md)에 정리했습니다.
+
+![검색 화면](docs/images/search.png)
 
 ### 유실 없는 비동기 인덱싱
 
