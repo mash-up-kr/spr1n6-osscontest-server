@@ -6,7 +6,7 @@
 
 라벨링 없이 청크 하나당 질문 하나를 LLM으로 자동 생성하는 합성(synthetic) QA 방식을 썼다. 단순 프롬프트의 함정(질문이 원문 단어를 그대로 재사용해 키워드 검색만으로 항상 맞아버리는 문제, 저품질 질문)을 막기 위해 논문 근거로 3단계 파이프라인(요약 → 원문 고유명사 비재사용 질문 생성 → 답변 가능성 검증)을 구성했다. 최종 52개 질의-정답 쌍을 확보했다.
 
-논문 출처 : Bai, F., Harrigian, K., Stremmel, J., Hassanzadeh, H., Saeedi, A., & Dredze, M. (2024). *Give me Some Hard Questions: Synthetic Data Generation for Clinical QA*. Machine Learning for Health (ML4H) Findings.  
+논문 출처 : Bai, F., Harrigian, K., Stremmel, J., Hassanzadeh, H., Saeedi, A., & Dredze, M. (2024). *Give me Some Hard Questions: Synthetic Data Generation for Clinical QA*. Machine Learning for Health (ML4H) Findings.  
 
 ## 3. 평가
 
@@ -21,25 +21,32 @@
 ### 검색 정확도 고도화 (BM25, Reranking)
 
 - **형태소 분석 + BM25**: 한국어 형태소 분석기(Nori)로 토큰화하고, IDF를 포함한 BM25 랭킹을 애플리케이션 레이어에서 직접 계산해 벡터 검색과 RRF로 결합하도록 재구성했다.
-- **Reranking**: RRF 상위 후보를 랭킹 전용 모델(Cross-Encoder)로 재정렬하는 기능도 구현해 Recall과 MMR 지표가 개선됨을 확인했다. ko-reranker 등 한국어 전용 모델을 사용하면 성능이 더욱 개선된다.
+- **Reranking**: RRF 상위 후보를 랭킹 전용 모델(Cohere Rerank API)로 재정렬하는 기능도 구현해 검증했으나, 정답률이 오히려 떨어지고 지연시간이 늘어 현재는 비활성화 상태로 남겨두고 고도화를 진행할 예정이다.
 
 ### 성능 고도화 (캐싱, 인덱스)
 
 - **질의 임베딩 캐싱**: 동일 질의 반복 시 임베딩 API 호출을 생략한다 — 반복 질의 기준 약 3.9초 → 0.4~0.5초로 약 8배 단축을 확인했다.
-- **HNSW 인덱스**: 실제 코퍼스(청크 28,926건) 기준 ANN(인덱스 사용, 1-30ms)과 Exact(인덱스 미사용 전수비교, 290-730ms)를 비교해 약 25~40배 빠름을 확인했다.
+- **HNSW 인덱스**: 실제 코퍼스(청크 28,926건) 기준 ANN(인덱스 사용, 1~30ms)과 Exact(인덱스 미사용 전수비교, 290~730ms)를 비교해 약 25~40배 빠름을 확인했다.
 - **GIN 인덱스**: 키워드 후보 회수 쿼리가 `EXPLAIN`상 실제로 인덱스를 타는 것을 확인했다(매칭 시 6 ms 수준).
 
 ## 5. 결과
 
 같은 평가 풀 기준으로 검색 정합성이 크게 개선됐다.
 
-|  | 기존(ts_rank_cd) | BM25 이후 | Rerank 이후 |
-| --- | --- | --- | --- |
-| Recall@10 | 0.31 | 0.69 | 0.79 |
-| MRR | 0.191 | 0.379 | 0.586 |
+|  | 기존(ts_rank_cd) | 고도화 이후 |
+| --- | --- | --- |
+| Recall@10 | 0.31 | 0.67~0.78 |
+| MRR | 0.191 | 0.39~0.42 |
 
-## 6. 한계와 개선 방향
+## 6. MCP
 
+검색·문서 조회 기능을 MCP(Model Context Protocol) 서버로도 노출해, LLM 클라이언트가 표준 프로토콜로 바로 호출할 수 있게 했다. Spring AI MCP(Streamable HTTP)로 구현했다. 연결하면 LLM이 자연어 요청(예: "예산 관련 문서 찾아줘")을 `search_documents` 호출로 알아서 변환해 쓴다.
+
+제공 tool 목록과 클라이언트 설정법은 [MCP 서버 붙이기](../README.md#mcp-서버-붙이기)에 있다.
+
+## 7. 한계와 개선 방향
+
+- **Reranking이 오히려 지표를 떨어뜨림**: RRF 상위 후보를 Cohere Rerank API로 재정렬해 봤으나 정답률이 떨어지고 지연시간이 늘어, 기본값을 끈 채 요청별 opt-in으로만 남겼다. 한국어 전용 리랭커(ko-reranker 등)나 후보 풀 크기 조정으로 재검증할 여지가 있다.
 - **검색 옵션값을 체계적으로 스윕하지 않고 정함**: `ef_search`는 ANN 정확도 스윕(40→84.4%, 200→95.8%)까지는 했지만, End-to-End Recall@10·지연시간 트레이드오프를 여러 값으로 직접 비교해 최적값을 고르진 못하고 보수적으로 100을 유지했다. RRF_K, minimum_should_match 비율, 공통어 제외 비율 같은 다른 하이퍼파라미터도 관례값·직관으로 정했고 우리 데이터로 스윕 검증하지 않았다.
 - **HNSW 튜닝이 질의 시점 파라미터(`ef_search`)에 그침**: 인덱스 빌드 파라미터(`m`, `ef_construction`)는 pgvector 기본값을 그대로 썼고 별도로 스윕하지 않았다. tenant_id를 반정규화해 `hnsw.iterative_scan`을 쓸 수 있게 설계했지만 실제로 켜서 검증하지는 못했다.
 - **평가 풀 규모의 한계**: 52개 질의로는 특히 MRR 같은 지표의 변동폭이 커서, 개선 여부를 확신 있게 말하기엔 표본이 여전히 작다.
