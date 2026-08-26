@@ -186,7 +186,7 @@ erDiagram
 | `latest_embedding_version_no` | `BIGINT`       | `NOT NULL`, 기본 `0`, `>= 0`, `<= latest_upload_version_no` | 임베딩이 완료된 가장 최신 `version_no`                 |
 | `searchable_version_id`       | `BIGINT`       | FK → `document_version(id, document_id)`              | 검색 대상 버전. `latest_embedding_version_no` 이하만 지정 |
 | `deleted_at`                  | `TIMESTAMPTZ`  |                                                       | 삭제 요청 시각                                    |
-| `purged_at`                   | `TIMESTAMPTZ`  | `deleted_at IS NOT NULL` 일 때만 값 허용                     | 물리 정리 완료 시각. 현재 어느 저장소도 이 컬럼을 쓰지 않습니다 (5장) |
+| `purged_at`                   | `TIMESTAMPTZ`  | `deleted_at IS NOT NULL` 일 때만 값 허용                     | 물리 정리 완료 시각                                |
 | `created_at` / `updated_at`   | `TIMESTAMPTZ`  | `NOT NULL`, 기본 현재                                     |                                             |
 
 ### 2.4 `document_version`
@@ -394,9 +394,7 @@ Worker 의 인덱싱 처리 이력.
 
 승격 규칙: Worker 는 후보 버전의 `embedding_version_no` 가 현재 `searchable_version_id` 의 그것보다 클 때만 승격합니다. 삭제된 문서(`deleted_at IS NOT NULL`)는 승격 대상에서 빠지므로, 늦게 끝난 옛 Job 이 검색 버전을 되돌리지 못합니다.
 
-삭제 정리: Worker 는 `deleted_at` 이 찍혔는데 청크가 남은 문서를 스윕해 `document_chunk` 를 지웁니다. 청크가 사라지면 다음 스윕에서 잡히지 않으므로 완료 마커가 필요 없고, 그래서 `document.purged_at` 은 스키마에만 있고 실제로 채워지지 않습니다. `idx_document_pending_purge` 와 `ck_document_purged_after_deleted` 도 같은 이유로 현재 동작하지 않습니다.
-
-셋 다 스키마에 그대로 둡니다. 원본 파일 삭제까지 포함한 정리 단계가 붙으면 쓸 자리가 있습니다.
+삭제 정리: Worker 는 `deleted_at` 이 찍혔는데 청크가 남은 문서를 스윕해 `document_chunk` 를 지웁니다. 청크가 사라지면 다음 스윕에서 잡히지 않으므로 같은 스윕을 몇 번 돌려도 결과가 같습니다.
 
 ---
 
@@ -405,7 +403,7 @@ Worker 의 인덱싱 처리 이력.
 | 인덱스                                    | 대상                                                   | 용도                    |
 |----------------------------------------|------------------------------------------------------|-----------------------|
 | `idx_document_tenant_active`           | `document (tenant_id, id) WHERE deleted_at IS NULL`   | 테넌트 문서 목록             |
-| `idx_document_pending_purge`           | `document (deleted_at) WHERE deleted_at IS NOT NULL AND purged_at IS NULL` | 삭제 정리 스캔용. 현재 쓰이지 않습니다 (5장) |
+| `idx_document_pending_purge`           | `document (deleted_at) WHERE deleted_at IS NOT NULL AND purged_at IS NULL` | 삭제 정리 스캔               |
 | `idx_document_version_document`        | `document_version (document_id, version_no DESC)`     | 버전 목록                 |
 | `idx_outbox_pending`                   | `outbox_event (next_attempt_at, id) WHERE status = 'PENDING'` | 릴레이 폴링                |
 | `idx_outbox_stuck`                     | `outbox_event (locked_at) WHERE status = 'PUBLISHING'` | 좀비 행 회수               |
