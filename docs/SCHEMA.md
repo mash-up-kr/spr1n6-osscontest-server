@@ -310,14 +310,15 @@ Worker 의 인덱싱 처리 이력.
 | `PENDING`    | 발행 대기. `next_attempt_at <= now()` 인 행이 선점 대상입니다        |
 | `PUBLISHING` | 릴레이가 선점해 발행 중. `locked_by` / `locked_at` 이 함께 채워집니다     |
 | `PUBLISHED`  | Kafka 가 수신 응답을 준 상태                                      |
-| `DEAD`       | 발행을 멈춘 상태. 종착역이 아니며 자동 복구 대상입니다                          |
+| `DEAD`       | 발행을 멈춘 상태. 종착역이 아니며, 영구 실패로 정지시킨 행만 자동 복구에서 빠집니다        |
 
 | 전이                                | 계기                                                                     |
 |-----------------------------------|------------------------------------------------------------------------|
 | `PENDING` → `PUBLISHING`          | 릴레이 선점 (`FOR UPDATE SKIP LOCKED`)                                      |
 | `PUBLISHING` → `PUBLISHED`        | Kafka 수신 응답                                                            |
 | `PUBLISHING` → `PENDING`          | 재시도 가능한 실패. `publish_attempt_count` 를 올리고 백오프만큼 `next_attempt_at` 을 미룹니다 |
-| `PUBLISHING` → `DEAD`             | 재시도 한도 도달, 또는 재시도해도 소용없는 실패의 즉시 판정                                    |
+| `PUBLISHING` → `DEAD` (일시 실패 누적) | 재시도 한도 도달. `next_attempt_at` 에 복구 대기 시각이 들어가 나중에 자동으로 되살아납니다            |
+| `PUBLISHING` → `DEAD` (영구 실패)    | 재시도해도 결과가 달라지지 않는 실패. 1회 만에 `next_attempt_at = 'infinity'` 로 정지시킵니다   |
 | `PUBLISHING` → `PENDING` (회수)     | `locked_at` 이 잠금 타임아웃을 넘긴 행. 한도를 넘겼어도 `DEAD` 로 내리지 않고 항상 `PENDING` 입니다 |
 | `DEAD` → `PENDING`                | 복구 스케줄러가 `next_attempt_at <= now()` 인 행을 되살립니다. 시도 횟수는 `0` 으로 초기화됩니다   |
 | `DEAD` → `PENDING` (수동)           | 어드민 재발행. 새 행을 만들지 않고 같은 행을 되돌립니다                                       |
@@ -328,7 +329,9 @@ Worker 의 인덱싱 처리 이력.
 | `next_attempt_at` | 의미                                             |
 |-------------------|------------------------------------------------|
 | 시각                | 그 시각이 지나면 복구 스케줄러가 자동으로 `PENDING` 으로 되살립니다      |
-| `'infinity'`      | 사람이 정지시켰거나 즉시 `DEAD` 판정된 행. 정지를 풀기 전까지 되살아나지 않습니다 |
+| `'infinity'`      | 영구 실패로 판정됐거나 사람이 정지시킨 행. 정지를 풀기 전까지 되살아나지 않습니다     |
+
+영구 실패로 분류하는 것은 봉투 조립 실패와 Kafka 의 `RecordTooLargeException` / `TopicAuthorizationException` / `InvalidTopicException` 넷입니다. 확신이 없는 실패는 일시로 둡니다.
 
 ### `indexing_job.status`
 
