@@ -14,6 +14,8 @@
 
 A document management system that **finds documents by meaning**. You do not need to remember the filename or the exact wording — describe what you are looking for and it surfaces the relevant passages.
 
+The demo service is available [here](https://spr1n6-osscontest-web.vercel.app/). 🚀
+
 ---
 
 ## Overview
@@ -23,8 +25,6 @@ Documentation is how a team accumulates and shares context. But as documents pil
 This system takes that work off people's hands. Upload a file and you are done with it: the upload triggers indexing, and failed jobs retry on their own.
 
 Five file types are accepted — PDF, DOCX, Markdown, HWP, TXT — and re-uploading the same document stacks it as a new version. To undo a change, roll back to an earlier version as the search target; upload a file whose contents match an existing version and the system tells you it is a duplicate. Who can see each document is decided per user and per tenant.
-
-The demo service is available [here](https://spr1n6-osscontest-web.vercel.app/).
 
 <br>
 
