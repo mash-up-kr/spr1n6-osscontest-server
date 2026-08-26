@@ -217,6 +217,7 @@ The documents below are written in Korean.
 - [Search design and evaluation](docs/SEARCH.md) — hybrid search design, evaluation method, results
 - [Code conventions](docs/CODE_CONVENTIONS.md)
 - [API specification](docs/API_SPEC.md)
+- [Database schema](docs/SCHEMA.md) — tables, state transitions, write ownership
 
 ---
 
