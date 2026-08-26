@@ -456,7 +456,7 @@ Content-Type: application/json
   "query": "3개월 이내 해지 시 위약금",
   "topK": 10,
   "contextWindow": 1,
-  "rerank": false
+  "rerank": true
 }
 ```
 
@@ -465,7 +465,7 @@ Content-Type: application/json
 | `query` | string | O | 검색 질의문 |
 | `topK` | integer | X | 기본 10, 최대 50 |
 | `contextWindow` | integer | X | 매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함), 최대 5 |
-| `rerank` | boolean | X | 결과를 재정렬 모델(Cohere Rerank)로 다듬을지 여부. 기본 false. 정확도↑ 지연시간↑ |
+| `rerank` | boolean | X | 결과를 재정렬 모델(Cohere Rerank)로 다듬을지 여부. 기본 true. 정확도↑ 지연시간↑. `COHERE_API_KEY`가 없으면 값과 무관하게 RRF 순서로 대체된다 |
 
 ```json
 200 OK

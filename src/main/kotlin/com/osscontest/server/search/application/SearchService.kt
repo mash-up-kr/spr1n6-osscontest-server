@@ -39,7 +39,11 @@ class SearchService(
             userId = user.userId,
             queryText = query,
             queryEmbedding = queryEmbedding,
-            options = SearchOptions(topK = topK, contextWindow = contextWindow, rerank = request.rerank ?: false),
+            options = SearchOptions(
+                topK = topK,
+                contextWindow = contextWindow,
+                rerank = request.rerank ?: searchProperties.rerank.defaultEnabled,
+            ),
         )
     }
 }

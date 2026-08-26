@@ -50,8 +50,9 @@ class SearchTools(
         @McpToolParam(description = "매칭 청크 앞뒤로 함께 반환할 청크 수. 기본 0(미포함)", required = false)
         contextWindow: Int?,
         @McpToolParam(
-            description = "결과를 재정렬 모델(Cohere Rerank)로 한 번 더 다듬을지 여부. 기본 false. " +
-                "정확도가 중요한 요청('정확하게'/'꼼꼼하게' 찾아줘)이면 true로 설정한다 — 대신 지연시간이 늘어난다.",
+            description = "결과를 재정렬 모델(Cohere Rerank)로 한 번 더 다듬을지 여부. 기본 true — " +
+                "합성 QA 평가에서 Recall@10·MRR을 일관되게 끌어올려 기본으로 켜 둔다. " +
+                "속도가 더 중요한 요청이면 false로 낮춘다 — 지연시간이 짧아지는 대신 정확도가 떨어진다.",
             required = false,
         )
         rerank: Boolean?,
