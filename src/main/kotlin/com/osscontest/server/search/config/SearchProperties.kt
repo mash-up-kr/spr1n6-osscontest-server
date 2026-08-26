@@ -26,8 +26,13 @@ data class SearchProperties(
     data class Rerank(
         // RRF 상위 몇 건까지 재정렬 대상으로 삼을지. topK보다 넉넉해야 재정렬이
         // RRF 순위 밖의 후보도 끌어올릴 여지가 있다. on/off 자체는 요청 파라미터(rerank)로
-        // 받는다 — 이 값은 켜졌을 때의 풀 크기만 정한다.
+        // 받되, 요청에 값이 없으면 이 기본값을 쓴다.
         var candidatePoolSize: Int = 30,
+        // 합성 QA 평가(docs/SEARCH.md 5절)에서 rerank 가 Recall@10·MRR 을 일관되게
+        // 끌어올려 기본값을 true 로 둔다. 리랭킹이 실패하면 fail-open 으로 RRF 순서로
+        // 대체되므로(SearchChunkRepository.rerank()), COHERE_API_KEY 가 없어도 검색 자체는
+        // 막히지 않는다.
+        var defaultEnabled: Boolean = true,
         var cohere: Cohere = Cohere(),
     ) {
         data class Cohere(

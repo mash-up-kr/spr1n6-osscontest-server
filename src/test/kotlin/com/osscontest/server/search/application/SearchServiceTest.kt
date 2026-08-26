@@ -124,24 +124,24 @@ class SearchServiceTest {
     }
 
     @Test
-    fun `rerank를 지정하지 않으면 false를 쓴다`() {
+    fun `rerank를 지정하지 않으면 SearchProperties 기본값을 쓴다`() {
         val (service, _, repository) = newService()
 
         service.search(user, SearchRequest(query = "위약금"))
 
         val optionsCaptor = argumentCaptor<SearchOptions>()
         verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(false, optionsCaptor.firstValue.rerank)
+        assertEquals(properties.rerank.defaultEnabled, optionsCaptor.firstValue.rerank)
     }
 
     @Test
-    fun `rerank를 지정하면 그대로 전달된다`() {
+    fun `rerank를 지정하면 기본값 대신 그대로 전달된다`() {
         val (service, _, repository) = newService()
 
-        service.search(user, SearchRequest(query = "위약금", rerank = true))
+        service.search(user, SearchRequest(query = "위약금", rerank = !properties.rerank.defaultEnabled))
 
         val optionsCaptor = argumentCaptor<SearchOptions>()
         verify(repository).hybridSearch(any(), any(), any(), any(), optionsCaptor.capture())
-        assertEquals(true, optionsCaptor.firstValue.rerank)
+        assertEquals(!properties.rerank.defaultEnabled, optionsCaptor.firstValue.rerank)
     }
 }
