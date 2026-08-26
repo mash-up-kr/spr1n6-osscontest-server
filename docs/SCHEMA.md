@@ -426,7 +426,7 @@ Worker 의 인덱싱 처리 이력.
 | `trg_document_version_outbox`   | `AFTER INSERT ON document_version`                         | `INDEXING_REQUESTED` 아웃박스 행 삽입 후 `pg_notify('outbox_event', <id>)` |
 | `trg_document_deleted_outbox`   | `AFTER UPDATE ON document` (`deleted_at` 이 `NULL` → 값일 때만) | `DOCUMENT_DELETED` 아웃박스 행 삽입 후 `pg_notify`                          |
 
-알림은 유실될 수 있으므로 릴레이는 폴링도 함께 수행해야 합니다. `pg_notify` 는 8000바이트 제한이 있어 ID 만 보내고 릴레이가 다시 조회합니다.
+알림은 유실될 수 있으므로 릴레이는 폴링도 함께 수행해야 합니다. `pg_notify` 는 8000바이트 제한이 있어 ID 만 보냅니다. 릴레이는 이 ID 를 쓰지 않고 알림을 "깨어나라" 신호로만 받은 뒤, `next_attempt_at <= now()` 인 행을 배치로 선점합니다.
 
 ---
 
