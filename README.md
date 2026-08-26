@@ -210,6 +210,7 @@ MCP 클라이언트 설정에 엔드포인트와 인증 헤더를 등록합니�
 - [검색 설계와 평가](docs/SEARCH.md) — 하이브리드 검색 설계, 평가 방법, 고도화 결과
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
 - [API 명세](docs/API_SPEC.md)
+- [데이터베이스 스키마](docs/SCHEMA.md) — 테이블, 상태 전이, 쓰기 소유권
 
 ---
 
