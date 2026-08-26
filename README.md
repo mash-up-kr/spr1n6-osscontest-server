@@ -1,5 +1,7 @@
 # Tmax OpenSQL 기반 AI 문서 관리 시스템
 
+**한국어** | [English](README.en.md)
+
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.0-6DB33F?logo=springboot&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-21_LTS-437291?logo=openjdk&logoColor=white)
@@ -12,6 +14,8 @@
 
 문서를 올려 두면 필요할 때 **의미로 찾아 주는** 문서 관리 시스템입니다. 파일명이나 정확한 단어를 기억하지 못해도, 묻고 싶은 내용을 그대로 적으면 관련된 대목을 찾아 줍니다.
 
+데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다. 🚀
+
 ---
 
 ## 개요
@@ -21,8 +25,6 @@
 이 시스템은 문서와 관련된 비효율적인 일을 사람이 하지 않도록 만듭니다. 파일을 올리면 그 뒤는 신경 쓰지 않아도 됩니다. 업로드가 인덱싱을 트리거하고, 실패한 작업은 스스로 재시도합니다.
 
 PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문서를 다시 올리면 새 버전으로 쌓입니다. 변경 사항을 되돌리고 싶다면 이전 버전을 찾아 검색 대상으로 쉽게 롤백할 수 있고, 같은 문서에 내용이 같은 파일을 새 버전으로 올리면 중복이라고 알려 줍니다. 문서마다 누가 볼 수 있는지를 사용자와 테넌트 단위로 정합니다.
-
-데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다.
 
 <br>
 
@@ -57,12 +59,16 @@ flowchart LR
 
 자세한 설계와 평가 과정은 [검색 설계와 평가](docs/SEARCH.md)에 정리했습니다.
 
+![검색 화면](docs/images/search.png)
+
 ### 유실 없는 비동기 인덱싱
 
 업로드 응답은 인덱싱을 기다리지 않습니다. 대신 문서를 저장하는 트랜잭션과 **같은 원자 단위로** 인덱싱 요청 이벤트를 남깁니다.
 이 이벤트는 DB 트리거가 만듭니다. 애플리케이션이 발행을 빠뜨릴 수 없고, 저장이 롤백되면 이벤트도 함께 사라집니다.
 
 남은 이벤트는 릴레이가 카프카로 옮기고 워커가 받아 처리합니다. **처리에 실패한 작업은 간격을 두고 스스로 재시도**합니다. 진행 상태를 UI에서 준실시간으로 확인할 수 있고, 자동 재시도로도 복구되지 않은 작업은 버튼으로 직접 재시도를 요청할 수 있습니다.
+
+![문서 목록 화면](docs/images/documents.png)
 
 ### 테넌트와 문서 단위 접근 제어
 
