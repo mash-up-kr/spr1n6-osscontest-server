@@ -1,3 +1,5 @@
+**한국어** | [English](SEARCH.en.md)
+
 ## 1. 설계
 
 벡터 검색(pgvector + HNSW)과 키워드 검색(Postgres 전문 검색)을 결합한 하이브리드 검색으로 설계했다.

@@ -57,7 +57,7 @@ Documents are split into passages, indexed as 1536-dimensional vectors, and matc
 
 An option returns the passages immediately before and after each hit, because a single passage on its own often carries too little context to judge.
 
-The design and evaluation are written up in [Search design and evaluation](docs/SEARCH.md) (Korean).
+The design and evaluation are written up in [Search design and evaluation](docs/SEARCH.en.md).
 
 ![Search screen](docs/images/search.png)
 
@@ -214,7 +214,7 @@ The documents below are written in Korean.
 
 - [Contributing](CONTRIBUTING.md) — branches, commit messages, pull requests
 - [Development guide](docs/DEVELOPMENT.md) — per-profile workflow, migrations, environment variables
-- [Search design and evaluation](docs/SEARCH.md) — hybrid search design, evaluation method, results
+- [Search design and evaluation](docs/SEARCH.en.md) — hybrid search design, evaluation method, results
 - [Code conventions](docs/CODE_CONVENTIONS.md)
 - [API specification](docs/API_SPEC.md)
 - [Database schema](docs/SCHEMA.md) — tables, state transitions, write ownership
