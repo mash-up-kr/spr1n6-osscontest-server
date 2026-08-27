@@ -53,7 +53,7 @@ This repository is `server`.
 
 ### Semantic search
 
-Documents are split into passages, indexed as 1536-dimensional vectors, and matched against the query through an HNSW index. A passage is found when its meaning is close, even with no words in common. Combining this with morphological analysis and BM25 keyword search raised **Recall@10 from 0.31 to 0.78 on a synthetic QA evaluation set**.
+Documents are split into passages, indexed as 1536-dimensional vectors, and matched against the query through hybrid search (RRF). A passage is found when its meaning is close, even with no words in common. Combining this with morphological analysis, BM25, and reranking raised **Recall@10 from 0.31 to 0.79 on a synthetic QA evaluation set**.
 
 An option returns the passages immediately before and after each hit, because a single passage on its own often carries too little context to judge.
 
