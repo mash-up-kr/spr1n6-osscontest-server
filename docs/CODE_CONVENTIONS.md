@@ -1,3 +1,5 @@
+**한국어** | [English](CODE_CONVENTIONS.en.md)
+
 # 코드 컨벤션
 
 ## 이 문서의 목적

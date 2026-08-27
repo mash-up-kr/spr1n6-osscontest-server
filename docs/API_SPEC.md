@@ -1,3 +1,5 @@
+**한국어** | [English](API_SPEC.en.md)
+
 # API 명세
 
 | 항목        | 값                                        |

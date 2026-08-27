@@ -1,3 +1,5 @@
+**한국어** | [English](DEVELOPMENT.en.md)
+
 # 개발 가이드
 
 기여자를 위한 문서다. 앱을 띄워 보기만 할 때는 [README 의 시작하기](../README.md#시작하기)로 충분하다.

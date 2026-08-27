@@ -168,7 +168,7 @@ Search and document lookup are exposed as MCP (Model Context Protocol) tools, so
 | `list_documents` | Lists the documents in the tenant with cursor-based pagination |
 | `get_document` | Fetches a document's detail directly by `documentId`, without searching |
 
-Parameters are documented in [API specification, section 10](docs/API_SPEC.md) (Korean).
+Parameters are documented in [API specification, section 10](docs/API_SPEC.en.md).
 
 ### Usage
 
@@ -210,14 +210,12 @@ Once connected, the LLM turns natural-language requests ("find the documents abo
 
 ## Documentation
 
-The documents below are written in Korean.
-
-- [Contributing](CONTRIBUTING.md) — branches, commit messages, pull requests
-- [Development guide](docs/DEVELOPMENT.md) — per-profile workflow, migrations, environment variables
+- [Contributing](CONTRIBUTING.en.md) — branches, commit messages, pull requests
+- [Development guide](docs/DEVELOPMENT.en.md) — per-profile workflow, migrations, environment variables
 - [Search design and evaluation](docs/SEARCH.en.md) — hybrid search design, evaluation method, results
-- [Code conventions](docs/CODE_CONVENTIONS.md)
-- [API specification](docs/API_SPEC.md)
-- [Database schema](docs/SCHEMA.md) — tables, state transitions, write ownership
+- [Code conventions](docs/CODE_CONVENTIONS.en.md)
+- [API specification](docs/API_SPEC.en.md)
+- [Database schema](docs/SCHEMA.en.md) — tables, state transitions, write ownership
 
 ---
 

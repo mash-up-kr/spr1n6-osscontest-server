@@ -1,3 +1,5 @@
+**한국어** | [English](CONTRIBUTING.en.md)
+
 # 기여 가이드
 
 이 저장소에서 작업할 때 지키는 절차입니다. 코드를 쓰는 기준은 [docs/CODE_CONVENTIONS.md](docs/CODE_CONVENTIONS.md)에, 개발 환경을 세팅하는 방법은 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 따로 있습니다.
