@@ -150,6 +150,7 @@ docker compose down -v     # 데이터까지 지웁니다
 |---|:--:|---|
 | `OPENAI_API_KEY` | O | 임베딩 생성에 사용합니다 |
 | `DB_ENCRYPTION_KEY` | X | 사용자명·파일명 암호화 키. 기본값은 로컬 전용입니다 |
+| `COHERE_API_KEY` | X | 검색 결과 재정렬(Rerank)에 사용합니다. 없으면 재정렬 없이 RRF 순서로 응답합니다 |
 | `SERVER_HOST_PORT` | X | API 포트 (기본 8080) |
 | `CORS_ALLOWED_ORIGINS` | X | 허용할 origin (기본 `http://localhost:5173`) |
 
