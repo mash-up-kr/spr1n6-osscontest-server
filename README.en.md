@@ -149,6 +149,7 @@ docker compose down -v     # also deletes the data
 |---|:--:|---|
 | `OPENAI_API_KEY` | Yes | Used to generate embeddings |
 | `DB_ENCRYPTION_KEY` | No | Key for encrypting user names and filenames. The default is for local use only |
+| `COHERE_API_KEY` | No | Used to rerank search results. Without it, results are returned in RRF order without reranking |
 | `SERVER_HOST_PORT` | No | API port (default 8080) |
 | `CORS_ALLOWED_ORIGINS` | No | Allowed origins (default `http://localhost:5173`) |
 
