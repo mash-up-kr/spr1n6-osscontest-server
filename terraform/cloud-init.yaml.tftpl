@@ -1,0 +1,21 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}
+preserve_hostname: false
+write_files:
+  - path: /usr/local/sbin/setup-swap.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [ ! -f /swapfile ]; then
+        fallocate -l 2G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile
+      fi
+      if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
+        swapon /swapfile
+      fi
+      grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+runcmd:
+  - [ bash, /usr/local/sbin/setup-swap.sh ]

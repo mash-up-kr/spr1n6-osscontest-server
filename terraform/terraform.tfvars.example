@@ -1,0 +1,9 @@
+aws_region  = "ap-northeast-2"
+aws_profile = "default"
+ami_id = "ami-0ed6cd3fecc849a03"
+instance_type = "t3.small"
+availability_zone = "ap-northeast-2a"
+key_pair_name = "EXISTING_EC2_KEY_PAIR_NAME"
+ssh_cidrs = ["0.0.0.0/0"] # Or narrow to e.g. ["203.0.113.10/32"]
+associate_public_ip_address = true
+root_volume_gb = 30
