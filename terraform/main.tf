@@ -22,7 +22,7 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "intra_cluster" {
-  for_each                     = toset(["2379", "2380", "5432", "8008"])
+  for_each                     = toset(["2379", "2380", "5432", "6432", "6433", "8008"])
   security_group_id            = aws_security_group.db.id
   referenced_security_group_id = aws_security_group.db.id
   ip_protocol                  = "tcp"

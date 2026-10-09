@@ -28,6 +28,7 @@ OpenSQL HA 클러스터를 올릴 DB 노드 3대를 서울 리전(`ap-northeast-
 | 22 | `ssh_cidrs` (기본 예시는 전체 허용) | SSH, 로컬 DB 터널 |
 | 2379, 2380 | 같은 보안 그룹 | etcd 클라이언트, 피어 |
 | 5432 | 같은 보안 그룹 | PostgreSQL, 복제 |
+| 6432, 6433 | 같은 보안 그룹 | OpenProxy, OpenProxy 관리 |
 | 8008 | 같은 보안 그룹 | Patroni REST |
 
 DB 포트는 외부에 열지 않는다. 로컬에서는 SSH 터널로 접속한다.
@@ -60,7 +61,7 @@ SSH_HOST=<db-02 공인 IP>
 SSH_USER=rocky
 SSH_KEY_PATH=/절대경로/키.pem
 TUNNEL_REMOTE_HOST=127.0.0.1
-TUNNEL_REMOTE_PORT=<OpenProxy 포트>
+TUNNEL_REMOTE_PORT=6432
 ```
 
 ## 제약

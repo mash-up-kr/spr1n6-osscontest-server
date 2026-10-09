@@ -28,6 +28,7 @@ Hostname and swap are set on first boot by `cloud-init.yaml.tftpl`.
 | 22 | `ssh_cidrs` (example opens to all) | SSH, local DB tunnel |
 | 2379, 2380 | Same security group | etcd client, peer |
 | 5432 | Same security group | PostgreSQL, replication |
+| 6432, 6433 | Same security group | OpenProxy, OpenProxy admin |
 | 8008 | Same security group | Patroni REST |
 
 No DB port is exposed publicly. Local access goes through an SSH tunnel.
@@ -60,7 +61,7 @@ SSH_HOST=<db-02 public IP>
 SSH_USER=rocky
 SSH_KEY_PATH=/absolute/path/key.pem
 TUNNEL_REMOTE_HOST=127.0.0.1
-TUNNEL_REMOTE_PORT=<OpenProxy port>
+TUNNEL_REMOTE_PORT=6432
 ```
 
 ## Limitations
