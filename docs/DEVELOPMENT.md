@@ -42,7 +42,7 @@ Flyway는 기동할 때 자동으로 실행된다.
 
 ## dev 프로파일
 
-DB 클러스터(Tmax OpenSQL + Patroni)에 OpenProxy를 거쳐 접속한다. 접속 주소는 OpenProxy VIP `10.40.1.100:6432`이고, VPC 밖에 열려 있지 않아 `db-03`을 거치는 SSH 터널로 붙는다. 접속 정보는 `.env`로 관리한다.
+DB 클러스터(Tmax OpenSQL + Patroni)에 OpenProxy를 거쳐 접속한다. 접속 주소는 OpenProxy VIP `10.40.1.100:6432`이고, VPC 밖에 열려 있지 않아 `db-01`을 거치는 SSH 터널로 붙는다. 접속 정보는 `.env`로 관리한다.
 
 `tunnel.sh start`는 DB를 띄우는 것이 아니라 내 컴퓨터의 `15432` 포트를 VIP까지 이어주는 통로를 여는 명령이다. 앱은 이 포트를 로컬 DB처럼 보고 접속하므로, 앱을 실행하기 전에 터널이 먼저 열려 있어야 한다.
 
@@ -171,7 +171,7 @@ ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 Post
 | `DB_ENCRYPTION_KEY` | O | 트랜잭션마다 `app.encryption_key`에 설정할 고엔트로피 Base64 키 |
 | `DB_ENCRYPTION_CIPHER` | X | 암호화 알고리즘 (기본 `aria256`) |
 | `DB_SOCKET_TIMEOUT` | X | 쿼리 응답 대기 초 (기본 60). 오래 걸리는 마이그레이션을 수동 실행할 때만 늘리거나 `0`(무제한)으로 둔다 |
-| `SSH_HOST` | O | 터널을 붙일 서버 주소 (`db-03`, `43.200.76.219`) |
+| `SSH_HOST` | O | 터널을 붙일 서버 주소 (`db-01`, `13.124.25.248`) |
 | `SSH_PORT` | X | SSH 포트 (기본 22) |
 | `SSH_USER` | O | SSH 계정 (`rocky`) |
 | `SSH_KEY_PATH` | O | pem 파일 경로. dev 스택은 절대경로만 받는다 |

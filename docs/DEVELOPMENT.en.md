@@ -42,7 +42,7 @@ Flyway runs automatically on startup.
 
 ## `dev` profile
 
-Connects to the DB cluster (Tmax OpenSQL + Patroni) through OpenProxy. The address is the OpenProxy VIP `10.40.1.100:6432`. It is not reachable from outside the VPC, so you connect through an SSH tunnel via `db-03`. Connection details live in `.env`.
+Connects to the DB cluster (Tmax OpenSQL + Patroni) through OpenProxy. The address is the OpenProxy VIP `10.40.1.100:6432`. It is not reachable from outside the VPC, so you connect through an SSH tunnel via `db-01`. Connection details live in `.env`.
 
 `tunnel.sh start` does not start a DB. It opens a passage from port `15432` on your machine to the VIP. The app treats that port as a local DB, so the tunnel must be open before you start the app.
 
@@ -171,7 +171,7 @@ Copy `.env.dev.example` to `.env`. The gradle `dev` profile and the dev stack re
 | `DB_ENCRYPTION_KEY` | O | High-entropy Base64 key set as `app.encryption_key` in every transaction |
 | `DB_ENCRYPTION_CIPHER` | X | Encryption algorithm (default `aria256`) |
 | `DB_SOCKET_TIMEOUT` | X | Seconds to wait for a query response (default 60). Raise it, or set `0` (no limit), only when running a long migration manually |
-| `SSH_HOST` | O | Server the tunnel goes through (`db-03`, `43.200.76.219`) |
+| `SSH_HOST` | O | Server the tunnel goes through (`db-01`, `13.124.25.248`) |
 | `SSH_PORT` | X | SSH port (default 22) |
 | `SSH_USER` | O | SSH account (`rocky`) |
 | `SSH_KEY_PATH` | O | Path to the pem file. The dev stack accepts absolute paths only |

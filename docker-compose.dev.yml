@@ -3,7 +3,7 @@
 #   cp .env.dev.example .env   # 값을 채운다
 #   docker compose -f docker-compose.dev.yml up -d --build
 #
-# DB 는 db-03 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 간다. 컨테이너끼리는 db-tunnel:6432 를 본다.
+# DB 는 db-01 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 간다. 컨테이너끼리는 db-tunnel:6432 를 본다.
 # VPN 으로 VPC 에 붙어 있으면 .env 에서 COMPOSE_PROFILES 를 비우고 COMPOSE_DB_HOST=10.40.1.100 으로 둔다.
 # 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고 호스트 포트도 열지 않는다.
 # 마이그레이션은 자동으로 적용하지 않는다. 적용 규칙은 docs/DEVELOPMENT.md 를 따른다.

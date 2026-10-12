@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# DB 클러스터 SSH 터널을 열고 닫는다. db-03 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 연다.
+# DB 클러스터 SSH 터널을 열고 닫는다. db-01 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 연다.
 #
 #   ./scripts/tunnel.sh start
 #   ./scripts/tunnel.sh status
