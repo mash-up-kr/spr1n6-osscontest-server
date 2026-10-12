@@ -86,6 +86,8 @@ pem 파일은 프로젝트 폴더 밖에 두고 `chmod 600`으로 권한을 맞�
 
 `aidocs_session` 풀은 OpenProxy 한 대당 DB 연결 14개가 상한이다. 서버 하나가 10개를 상시 점유하므로 클러스터에 붙는 서버는 팀 전체에서 사실상 하나다. gradle로 띄운 `dev` 앱과 dev 스택의 server도 함께 띄우지 않는다. 상한을 넘은 연결은 10초 기다린 뒤 `AllServersDown`(`58000`)으로 실패한다. 쓰지 않을 때는 앱을 내려 주세요.
 
+검색은 `aidocs_ro` 풀(Replica)을 따로 쓴다. 상한은 8개이고 서버 하나가 최대 8개를 연다.
+
 누가 붙어 있는지는 이렇게 본다.
 
 ```sql
@@ -148,6 +150,7 @@ VPN으로 VPC에 붙어 있으면 `.env`에서 `COMPOSE_PROFILES`를 비우고 `
 | 접속 경로 | 직접 | SSH 터널 → OpenProxy VIP |
 | 접속 정보 | `application-local.yml` | `.env` |
 | 연결 초기화 | 없음 | `SET SERVER ROLE TO 'default'` |
+| 검색 연결 | 기본 연결을 함께 씀 | 별도 풀 `aidocs_ro` (Replica, 최대 8) |
 | 암호화 알고리즘 | AES-256 | ARIA-256 |
 | CORS 허용 | `application-local.yml` | `.env` |
 | SQL 로깅 | ON | OFF |
@@ -176,6 +179,7 @@ ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 Post
 | `DB_HOST` | dev | DB 호스트. 터널을 거치므로 `127.0.0.1` |
 | `DB_PORT` | dev | 포트. `TUNNEL_LOCAL_PORT`와 같은 값 (`15432`) |
 | `DB_NAME` | dev | OpenProxy 풀 이름 `aidocs_session` |
+| `DB_SEARCH_NAME` | X | 검색 연결의 OpenProxy 풀 이름 (기본 `aidocs_ro`) |
 | `DB_USERNAME` | O | 접속 계정 `aidocs` |
 | `DB_PASSWORD` | O | 접속 비밀번호 |
 | `DB_ENCRYPTION_KEY` | O | 트랜잭션마다 `app.encryption_key`에 설정할 고엔트로피 Base64 키 |
