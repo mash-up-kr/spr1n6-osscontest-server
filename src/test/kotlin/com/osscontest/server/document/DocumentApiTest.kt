@@ -721,6 +721,8 @@ class DocumentApiTest {
         attemptCount: Int,
         lastErrorMessage: String? = null,
     ) {
+        // ck_indexing_job_lease: PROCESSING 만 worker_id·lease_until 을 가진다.
+        val leased = status == "PROCESSING"
         em.createNativeQuery(
             """
             INSERT INTO indexing_job (
@@ -731,6 +733,8 @@ class DocumentApiTest {
                 phase,
                 attempt_count,
                 last_error_message,
+                worker_id,
+                lease_until,
                 created_at,
                 updated_at
             )
@@ -742,6 +746,8 @@ class DocumentApiTest {
                 :phase,
                 :attemptCount,
                 :lastErrorMessage,
+                :workerId,
+                CASE WHEN :leased THEN now() + interval '5 minutes' END,
                 now(),
                 now()
             )
@@ -754,6 +760,8 @@ class DocumentApiTest {
             .setParameter("phase", phase)
             .setParameter("attemptCount", attemptCount)
             .setParameter("lastErrorMessage", lastErrorMessage)
+            .setParameter("workerId", if (leased) "test-worker" else null)
+            .setParameter("leased", leased)
             .executeUpdate()
         em.flush()
         em.clear()
