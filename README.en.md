@@ -95,11 +95,13 @@ Document search and listing are exposed as MCP tools, so an AI client such as Cl
 
 - Docker & Docker Compose (v2.24 or later)
 - An OpenAI API key — used to embed documents during indexing and to embed search queries
+- A Cohere API key (optional) — used to rerank search results. Without it, results are returned without reranking
 
 ### Run
 
 ```bash
 export OPENAI_API_KEY=sk-...   # or put it in .env
+export COHERE_API_KEY=...      # optional
 docker compose -f docker-compose.local.yml up -d --build
 ```
 

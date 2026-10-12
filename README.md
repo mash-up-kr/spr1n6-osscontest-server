@@ -97,11 +97,13 @@ REST API와 같은 권한 검사를 거쳐, 에이전트 역시도 사용자와 
 
 - Docker & Docker Compose (v2.24 이상)
 - OpenAI API 키 — 문서 인덱싱과 검색 질의의 임베딩에 사용합니다
+- Cohere API 키 (선택) — 검색 결과 재정렬에 사용합니다. 없으면 재정렬 없이 응답합니다
 
 ### 실행
 
 ```bash
 export OPENAI_API_KEY=sk-...   # 또는 .env 에 적어 둡니다
+export COHERE_API_KEY=...      # 선택
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
