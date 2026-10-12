@@ -12,6 +12,7 @@ OpenSQL HA 클러스터를 올릴 DB 노드 3대를 서울 리전(`ap-northeast-
 | EC2 3대 | `t3.small`, Rocky Linux 9, 암호화된 gp3 30GiB, 스왑 2GiB |
 | Elastic IP | 노드마다 하나. 인스턴스를 껐다 켜도 접속 주소가 바뀌지 않는다 |
 | 보안 그룹 | 아래 [포트](#포트) 참고 |
+| OpenProxy VIP 권한 | IAM 정책 `openproxy-vip-role`, 역할·인스턴스 프로파일 `openproxy-vip-role`(db-02·db-03에 연결). 아래 [OpenProxy VIP](#openproxy-vip) 참고 |
 
 | 노드 | 호스트 이름 | 사설 IP |
 |---|---|---|
@@ -30,6 +31,7 @@ OpenSQL HA 클러스터를 올릴 DB 노드 3대를 서울 리전(`ap-northeast-
 | 5432 | 같은 보안 그룹 | PostgreSQL, 복제 |
 | 6432, 6433 | 같은 보안 그룹 | OpenProxy, OpenProxy 관리 |
 | 8008 | 같은 보안 그룹 | Patroni REST |
+| IP 프로토콜 112 | 같은 보안 그룹 | VRRP. OpenProxy 2대가 VIP 주인을 정하는 신호 |
 
 DB 포트는 외부에 열지 않는다. 로컬에서는 SSH 터널로 접속한다.
 
@@ -52,21 +54,34 @@ terraform output public_ips
 
 `terraform.tfvars`, `*.tfstate`, `*.tfplan`, `*.pem`은 커밋하지 않는다.
 
+## OpenProxy VIP
+
+앱은 VIP `10.40.1.100:6432` 하나로 붙는다. 평소에는 db-02 OpenProxy가 VIP를 갖고, db-02가 죽으면 db-03이 이어받는다.
+
+- 주인은 OpenProxy의 VRRP가 정한다(유니캐스트, IP 프로토콜 112).
+- AWS VPC는 VRRP로 옮긴 IP를 따라가지 않는다. 그래서 서버에 있는 스크립트가 AWS API로 보조 사설 IP를 ENI 사이로 옮긴다. 주인이 될 때는 `vip_promote.sh`가 VIP를 내 ENI로, 내려갈 때는 `vip_demote.sh`가 상대 ENI로 옮긴다. 스크립트는 `/home/opensql/etc/openproxy/`에 있고 이 Terraform 구성 밖이다.
+- 이 구성은 그 스크립트가 쓰는 권한(`openproxy_vip.tf`)과 VRRP 보안 그룹 규칙만 만든다. 권한은 db-02·db-03 ENI의 보조 IP 할당·해제로 좁혀 두었다.
+- VIP는 Terraform이 관리하지 않는다. `aws_instance`는 `secondary_private_ips` 변경을 무시한다.
+
+**주의**
+
+- db-02·db-03 인스턴스를 다시 만들면 ENI ID가 바뀐다. 정책은 Terraform이 다시 맞추지만, 서버의 `vip_demote.sh`에는 두 ENI ID가 적혀 있어서 함께 고쳐야 한다.
+
 ## 로컬 DB 접속
 
-`scripts/tunnel.sh`나 `docker-compose.tunnel.yml`을 그대로 쓴다. 터널은 OpenProxy가 도는 db-02로 들어가 그 안의 OpenProxy로 이어진다.
+`scripts/tunnel.sh`나 `docker-compose.tunnel.yml`을 그대로 쓴다. 터널은 OpenProxy가 없는 db-01로 들어가 VIP로 이어진다. 그래서 OpenProxy가 넘어가도 터널은 끊기지 않는다.
 
 ```
-SSH_HOST=<db-02 공인 IP>
+SSH_HOST=<db-01 공인 IP>
 SSH_USER=rocky
 SSH_KEY_PATH=/절대경로/키.pem
-TUNNEL_REMOTE_HOST=127.0.0.1
+TUNNEL_REMOTE_HOST=10.40.1.100
 TUNNEL_REMOTE_PORT=6432
 ```
 
 ## 제약
 
 - 3대 모두 `ap-northeast-2a`의 서브넷 하나에 있어 AZ 장애는 견디지 못한다.
-- AWS VPC에서는 VRRP·gratuitous ARP 기반 VIP가 그대로 동작하지 않는다. 사설 VIP가 필요하면 보조 사설 IP를 EC2 API로 옮겨야 하고, 그 주체에 `ec2:AssignPrivateIpAddresses`·`ec2:UnassignPrivateIpAddresses` 권한이 필요하다. 이 구성에는 포함하지 않았다. VIP 후보 `10.40.1.100`은 출력값으로만 남겨 뒀고 할당하지 않는다.
-- `iam-policy.json`은 개발 편의용이라 일부 권한이 `Resource: *`로 열려 있다. 최소 권한 정책이 아니다.
+- AWS VPC에서는 VRRP·gratuitous ARP만으로는 VIP가 옮겨지지 않는다. 그래서 위 [OpenProxy VIP](#openproxy-vip)처럼 AWS API로 옮긴다. VIP는 같은 서브넷 안에서만 옮길 수 있다.
+- `iam-policy.json`은 개발 편의용이라 일부 권한이 `Resource: *`로 열려 있다. 최소 권한 정책이 아니다. IAM 권한만은 `openproxy-vip-*` 이름으로 좁혔다.
 - DB 비밀번호·라이선스·개인키는 user-data, tfstate, 저장소 어디에도 넣지 않는다.

@@ -45,6 +45,7 @@ resource "aws_instance" "db" {
   subnet_id                   = aws_subnet.db.id
   private_ip                  = local.node_private_ips[each.key]
   vpc_security_group_ids      = [aws_security_group.db.id]
+  iam_instance_profile        = contains(local.vip_nodes, each.key) ? aws_iam_instance_profile.openproxy_vip.name : null
   key_name                    = var.key_pair_name
   associate_public_ip_address = var.associate_public_ip_address
   user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
@@ -61,6 +62,11 @@ resource "aws_instance" "db" {
     tags                  = local.common_tags
   }
   tags = merge(local.common_tags, { Name = "spr1n6-db-${each.key}" })
+
+  lifecycle {
+    # The VIP 10.40.1.100 is a secondary IP moved by OpenProxy scripts (openproxy_vip.tf).
+    ignore_changes = [secondary_private_ips]
+  }
 }
 
 resource "aws_eip" "db" {
