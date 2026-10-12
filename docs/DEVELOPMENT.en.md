@@ -8,28 +8,33 @@ This document is for contributors. If you just want to spin up the app and try i
 
 ## Choosing a development mode
 
-| Mode | Running the app | DB | When to use |
-|---|---|---|---|
-| `local` profile | gradle | Containerized PostgreSQL | When developing and modifying server code |
-| `dev` profile | gradle | Shared Tmax OpenSQL (SSH tunnel) | When you need to verify behavior against the real DB |
-| Full stack | Containers | Containerized PostgreSQL | When checking that things work end-to-end through the relay and worker |
+| Profile | DB | Compose file |
+|---|---|---|
+| `local` | Container PostgreSQL | `docker-compose.local.yml` |
+| `dev` | DB cluster (SSH tunnel → OpenProxy) | `docker-compose.dev.yml` |
 
-If you're only touching server code, `local` is the fastest option — you don't need to rebuild the app as a container.
+With either profile you can run the app with gradle, or bring up server and worker with compose too. When you only touch server code, running just the infrastructure in containers and the app with gradle is the fastest. Tests run against the `local` infrastructure.
 
 ---
 
 ## `local` profile
 
-Docker spins up PostgreSQL 17.8 and MinIO, and the application connects to these. The image tag is pinned to `0.8.1-pg17` to match the version used in production (Tmax OpenSQL v3.0, based on PostgreSQL 17.8 + pgvector 0.8.1).
+Docker runs PostgreSQL 17.8 and MinIO, and the application connects to them. The image tag is pinned to `0.8.1-pg17` so it matches the DB cluster (Tmax OpenSQL v3.0, based on PostgreSQL 17.8 + pgvector 0.8.1). Tests run against this DB and MinIO too.
 
 ```bash
-docker compose -f docker-compose.local.yml up -d
+docker compose -f docker-compose.local.yml up -d postgres minio minio-init
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-Original files are stored in MinIO. The `aidocs-documents` bucket is created automatically when the container starts, so no extra setup is needed, and you can check it from the console at `http://localhost:9001`.
+To run server and worker as containers too, bring it up without service names. `OPENAI_API_KEY` is read from the shell environment or `.env`.
 
-The credentials and ports used to connect directly to the DB and MinIO are in `docker-compose.local.yml`.
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+Original files are stored in MinIO. The `aidocs-documents` bucket is created when the container starts, so no extra setup is needed. You can browse it in the console at `http://localhost:9001`.
+
+The accounts and ports for connecting to the DB and MinIO directly are in `docker-compose.local.yml`.
 
 Flyway runs automatically on startup.
 
@@ -37,44 +42,41 @@ Flyway runs automatically on startup.
 
 ## `dev` profile
 
-Connects to the shared Tmax OpenSQL instance. The DB port isn't exposed externally, so the connection goes through an SSH tunnel. Connection details are managed via `.env`.
+Connects to the DB cluster (Tmax OpenSQL + Patroni) through OpenProxy. The address is the OpenProxy VIP `10.40.1.100:6432`. It is not reachable from outside the VPC, so you connect through an SSH tunnel via `db-03`. Connection details live in `.env`.
 
-`tunnel.sh start` doesn't spin up a DB — it opens a passage from port `15432` on your machine to the remote DB. The app connects to this port as if it were a local DB, so the tunnel must be open before you start the app.
+`tunnel.sh start` does not start a DB. It opens a passage from port `15432` on your machine to the VIP. The app treats that port as a local DB, so the tunnel must be open before you start the app.
 
 ```bash
 cp .env.dev.example .env
-# Open .env and fill in the values. Get the values and the pem file from your team.
+# Fill in the password, key and pem path in .env. Get the values and the pem file from the team.
 
-./scripts/tunnel.sh start   # opens the tunnel. Stays up in the background
+docker compose -f docker-compose.dev.yml up -d minio minio-init   # same MinIO as the worker (host port 9010)
+./scripts/tunnel.sh start               # opens the tunnel and keeps it in the background
 ./gradlew bootRun --args='--spring.profiles.active=dev'
 ```
 
-MinIO is started with a separate file.
-
-```bash
-docker compose -f docker-compose.dev.yml up -d
-```
+The `dev` profile sends `SET SERVER ROLE TO 'default'` on every connection, so it does not work against plain PostgreSQL.
 
 ### Managing the tunnel
 
-The tunnel runs in the background and stays up even if you close the terminal. Once opened, you don't need to reopen it when you restart the app — but it disappears on a computer reboot, so you'll need to `start` it again. Running `start` again while it's already open won't open a duplicate.
+The tunnel keeps running in the background even after you close the terminal. Once it's open you don't need to reopen it when you restart the app. It disappears when you reboot, so run `start` again. Running `start` while it's already open does not open a second one.
 
 ```bash
 ./scripts/tunnel.sh status
 ./scripts/tunnel.sh stop
 ```
 
-If the app fails with `Connection refused`, it's usually because the tunnel is closed — check `status` first.
+If the app fails with `Connection refused`, the tunnel is usually closed. Check `status` first.
 
-Keep the pem file outside the project folder and set its permissions with `chmod 600`. In `.env`, write the file path rather than the key value itself, and use an absolute path or one starting with `~/` so it doesn't depend on where you run things from.
+Keep the pem file outside the project folder and set its permissions with `chmod 600`. Put the file path in `.env`, not the key itself, and use an absolute path or one starting with `~/` so it works from any directory.
 
-The default local port is `15432`. Since the `local` profile's Docker PostgreSQL uses 5432, opening the tunnel on 5432 as well would either prevent the tunnel from opening while the container is running, or connect you to the wrong DB.
+The default local port is `15432`. The `local` profile's Docker PostgreSQL uses 5432, so opening the tunnel on 5432 too would either fail while the container is up or connect you to the wrong DB.
 
 ### Conserving connections
 
-The shared DB has `max_connections` set to 100. A single app instance holds 10 connections at all times under HikariCP's default settings, so it fills up quickly once several teammates run it simultaneously. Please shut down the app when you're not using it.
+The `aidocs_session` pool allows at most 14 DB connections per OpenProxy. One server holds 10 of them, so effectively only one server across the team can be connected to the cluster at a time. Don't run a gradle `dev` app and the dev stack's server together either. Connections over the limit wait 10 seconds and then fail with `AllServersDown` (`58000`). Shut the app down when you're not using it.
 
-Here's how to check who's connected.
+To see who is connected:
 
 ```sql
 SELECT usename, application_name, client_addr, state, count(*)
@@ -82,37 +84,38 @@ SELECT usename, application_name, client_addr, state, count(*)
  GROUP BY 1,2,3,4 ORDER BY count DESC;
 ```
 
-Connections through the tunnel all show `client_addr` as `127.0.0.1`, so they can't be told apart from each other.
+Connections through OpenProxy show the OpenProxy server's address as `client_addr`, so you can't tell apps apart by it.
 
 ### Applying migrations
 
-The `dev` profile has automatic Flyway execution turned off. Starting the app doesn't change the shared DB's schema.
+Automatic Flyway runs are off in the `dev` profile. Starting the app does not change the cluster's schema.
 
-Turn it on and run it only when an application is actually needed.
+Turn it on only when you need to apply migrations:
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=dev --spring.flyway.enabled=true'
 ```
 
-Always notify the team before applying one. By default, this is done by the [infra owner](https://github.com/mingdodev); if another teammate needs to do it, let the team know in advance before proceeding. **If a migration file that has already been applied is later modified, every other teammate will hit a checksum mismatch and be unable to start the app.**
+For migrations that take longer than 60 seconds, also set `DB_SOCKET_TIMEOUT=0`.
 
----
+Always tell the team before applying. By default the [infrastructure owner](https://github.com/mingdodev) does it. If someone else needs to, announce it to the team first. **If you edit a migration file after it has been applied, everyone else on the team will fail to start the app with a checksum mismatch.**
 
-## Full stack
+### dev stack
 
-Used to verify that things work end-to-end through the relay and worker. Run it the same way as [Getting started in the README](../README.en.md#getting-started).
-
-Confirm that upload → relay → worker → search passes end-to-end at least once before deploying to the server.
-
-If you need to connect to the shared DB, layer the tunnel overlay on top. In this case, migrations affect the whole team, so follow the application rules above.
+Runs server, worker and MinIO as containers. The DB is reached through the SSH tunnel opened by the `db-tunnel` container, so you don't need `tunnel.sh` on the host.
 
 ```bash
-cp .env.tunnel.example .env.tunnel
-docker compose -f docker-compose.yml -f docker-compose.tunnel.yml \
-  --env-file .env.tunnel up -d
+cp .env.dev.example .env   # fill in the values
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-There are some things a containerized PostgreSQL can't verify: ARIA-256 encryption, the Patroni HA setup, and behavior unique to Tmax OpenSQL. ARIA only exists in Tmax OpenCrypto and doesn't run under local `pgcrypto`, so the base setup runs the same code with AES-256 instead.
+| Container | Connection |
+|---|---|
+| `server` | `db-tunnel:6432` / `aidocs_session` pool, `dev` profile |
+| `worker` | `db-tunnel:6432` / `aidocs` pool |
+| `minio` | `minio:9000` between containers, `localhost:9010` from the host (console `9011`) |
+
+When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE_DB_HOST=10.40.1.100` in `.env`. The stack then connects to the VIP directly without `db-tunnel`.
 
 ---
 
@@ -120,27 +123,23 @@ There are some things a containerized PostgreSQL can't verify: ARIA-256 encrypti
 
 | File | Purpose |
 |---|---|
-| `docker-compose.yml` | Full stack. Runs the DB as a container alongside everything else |
-| `docker-compose.tunnel.yml` | Overlay. Replaces `db` with an SSH tunnel to the shared DB |
-| `docker-compose.deploy.yml` | Overlay. Relays TCP to the host DB and terminates HTTPS with Caddy |
-| `docker-compose.local.yml` | Infrastructure for the `local` profile (PostgreSQL, MinIO) |
-| `docker-compose.dev.yml` | Infrastructure for the `dev` profile (MinIO) |
-
-The base form is kept self-contained, and special cases are layered on top as overlays.
+| `docker-compose.local.yml` | `local`: PostgreSQL, MinIO, server, worker. Tests use only PostgreSQL and MinIO |
+| `docker-compose.dev.yml` | `dev`: SSH tunnel to the DB cluster, MinIO, server, worker |
 
 ---
 
 ## Profile configuration
 
-`local` and `dev` differ in DB location, how migrations are run, and the encryption algorithm. The application code itself is identical.
+`local` and `dev` differ in DB location, how migrations run, and the encryption algorithm. The application code is the same.
 
 | Item | `local` | `dev` |
 |---|---|---|
-| DB | Docker PostgreSQL 17.8 + pgvector 0.8.1 | Shared Tmax OpenSQL v3.0 + pgvector 0.8.1 |
-| Connection path | Direct | SSH tunnel |
-| Connection details | `application-local.yml` | `.env` |
+| DB | Docker PostgreSQL 17.8 + pgvector 0.8.1 | DB cluster (Tmax OpenSQL v3.0 + pgvector 0.8.1) |
+| Connection path | Direct | SSH tunnel → OpenProxy VIP |
+| Connection settings | `application-local.yml` | `.env` |
+| Connection init | None | `SET SERVER ROLE TO 'default'` |
 | Encryption algorithm | AES-256 | ARIA-256 |
-| CORS allowlist | `application-local.yml` | `.env` |
+| CORS allow list | `application-local.yml` | `.env` |
 | SQL logging | ON | OFF |
 | Flyway | Runs automatically on startup | Run manually |
 
@@ -148,43 +147,49 @@ The base form is kept self-contained, and special cases are layered on top as ov
 
 ## Encryption
 
-`app_user.name` and `document_version.original_filename` are stored encrypted. The algorithm is determined by the `app.encryption_cipher` session setting, and defaults to ARIA-256 if not specified.
+`app_user.name` and `document_version.original_filename` are stored encrypted. The algorithm is set by `app.encryption_cipher`; if unset, ARIA-256 is used.
 
-ARIA is only available in Tmax OpenCrypto 1.0, so `dev` uses ARIA-256; it isn't available in local PostgreSQL's `pgcrypto`, so `local` uses AES-256. `pgcrypto` on the local container is installed by `scripts/local-db/00-extensions.sql`. The `opencrypto` extension must already be installed on the dev DB beforehand.
+ARIA exists only in Tmax OpenCrypto 1.0, so `dev` uses ARIA-256. Local PostgreSQL's `pgcrypto` doesn't have it, so `local` uses AES-256. In the local container, `pgcrypto` is installed by `scripts/local-db/00-extensions.sql`. The cluster must already have the `opencrypto` extension installed.
 
-The ciphertext embeds algorithm information, so `app_decrypt` can decrypt a value regardless of which algorithm stored it. Ciphertext stored as AES-256 before the switch to ARIA still reads correctly.
+The ciphertext records which algorithm produced it, so `app_decrypt` can decrypt values stored either way. AES-256 ciphertext stored before the switch to ARIA still reads correctly.
 
-`DB_ENCRYPTION_KEY` is passed via the `app.encryption_key` session setting on each DB connection that HikariCP creates when the application starts. If the key changes, existing ciphertext can no longer be decrypted, so during operation the same value must be kept securely and set identically across all application instances.
+`DB_ENCRYPTION_KEY` is set as `app.encryption_key` at the start of every transaction, for that transaction only. So code that reads or writes encrypted columns must run inside `@Transactional`. If the key changes, existing ciphertext can no longer be decrypted, so set the same value on every instance.
 
 ---
 
-## `dev` profile environment variables
+## Environment variables
 
-Copy `.env.dev.example` to use.
+Copy `.env.dev.example` to `.env`. The gradle `dev` profile and the dev stack read the same file.
 
 | Variable | Required | Description |
 |---|:--:|---|
-| `DB_HOST` | Yes | DB host. Since it goes through the tunnel, this is `127.0.0.1` |
-| `DB_PORT` | No | Port (default 5432). Same value as `TUNNEL_LOCAL_PORT` |
-| `DB_NAME` | Yes | Database name |
-| `DB_USERNAME` | Yes | Connection account |
-| `DB_PASSWORD` | Yes | Connection password |
-| `DB_ENCRYPTION_KEY` | Yes | High-entropy Base64 key injected into the DB connection's `app.encryption_key` |
-| `DB_ENCRYPTION_CIPHER` | No | Encryption algorithm (default `aria256`). Switch to `aes256` only in environments that can't use ARIA |
-| `SSH_HOST` | Yes | Address of the server to tunnel into |
-| `SSH_PORT` | No | SSH port |
-| `SSH_USER` | Yes | SSH account |
-| `SSH_KEY_PATH` | Yes | Path to the pem file (absolute or `~/`) |
-| `TUNNEL_LOCAL_PORT` | No | Port to open locally (default 15432) |
-| `TUNNEL_REMOTE_HOST` | No | DB address as seen from the server (default 127.0.0.1) |
-| `TUNNEL_REMOTE_PORT` | No | DB port as seen from the server (default 5432) |
-| `STORAGE_ENDPOINT` | Yes | Object storage address |
-| `STORAGE_REGION` | Yes | Region. MinIO ignores this, but the SDK uses it for signing, so it must have a value |
-| `STORAGE_ACCESS_KEY` | Yes | Access key |
-| `STORAGE_SECRET_KEY` | Yes | Secret key |
-| `STORAGE_BUCKET` | Yes | Bucket to hold original files |
-| `OPENAI_API_KEY` | Yes | OpenAI API key used to convert search queries into 1536-dimensional `text-embedding-3-small` vectors |
-| `CORS_ALLOWED_ORIGINS` | Yes | Origins allowed for CORS. Pass multiple values comma-separated. The app won't start without a value here |
+| `DB_HOST` | dev | DB host. `127.0.0.1` because it goes through the tunnel |
+| `DB_PORT` | dev | Port. Same as `TUNNEL_LOCAL_PORT` (`15432`) |
+| `DB_NAME` | dev | OpenProxy pool name `aidocs_session` |
+| `DB_USERNAME` | O | Account `aidocs` |
+| `DB_PASSWORD` | O | Password |
+| `DB_ENCRYPTION_KEY` | O | High-entropy Base64 key set as `app.encryption_key` in every transaction |
+| `DB_ENCRYPTION_CIPHER` | X | Encryption algorithm (default `aria256`) |
+| `DB_SOCKET_TIMEOUT` | X | Seconds to wait for a query response (default 60). Raise it, or set `0` (no limit), only when running a long migration manually |
+| `SSH_HOST` | O | Server the tunnel goes through (`db-03`, `43.200.76.219`) |
+| `SSH_PORT` | X | SSH port (default 22) |
+| `SSH_USER` | O | SSH account (`rocky`) |
+| `SSH_KEY_PATH` | O | Path to the pem file. The dev stack accepts absolute paths only |
+| `TUNNEL_LOCAL_PORT` | X | Local port `tunnel.sh` opens (default 15432) |
+| `TUNNEL_REMOTE_HOST` | X | Address as seen from the server (default OpenProxy VIP `10.40.1.100`) |
+| `TUNNEL_REMOTE_PORT` | X | Port as seen from the server (default `6432`) |
+| `STORAGE_ENDPOINT` | dev | MinIO address as seen from the host (`http://localhost:9010`) |
+| `STORAGE_REGION` | O | Region. MinIO ignores it, but the SDK uses it for signing, so it must be set |
+| `STORAGE_ACCESS_KEY` | O | Access key |
+| `STORAGE_SECRET_KEY` | O | Secret key |
+| `STORAGE_BUCKET` | O | Bucket for original files |
+| `OPENAI_API_KEY` | O | OpenAI API key for embeddings (`text-embedding-3-small`, 1536 dimensions) |
+| `CORS_ALLOWED_ORIGINS` | O | Origins allowed by CORS. Pass several separated by commas |
+| `COHERE_API_KEY` | X | Search result reranking. Without it, RRF order is used |
+| `SERVER_HOST_PORT` · `MINIO_HOST_PORT` · `MINIO_CONSOLE_HOST_PORT` | X | Dev stack host ports (8080 / 9010 / 9011) |
+| `WORKER_IMAGE` | X | Worker image (default `ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest`) |
+
+`dev` in the Required column means it's needed only when running with gradle. In the dev stack, compose sets the in-container values.
 
 Do not commit `.env`, real connection details, or the pem file.
 

@@ -44,6 +44,6 @@ Record any deliberation over design or alternatives considered in the PR body, n
 
 ## Migrations
 
-Changes to the shared DB's schema affect the whole team. **Never modify a migration file once it has been applied.** Doing so leaves every other team member unable to start the app, due to a checksum mismatch.
+Changes to the DB cluster's schema affect the whole team. **Never modify a migration file once it has been applied.** Doing so leaves every other team member unable to start the app, due to a checksum mismatch.
 
 Follow [Applying migrations in the development guide](docs/DEVELOPMENT.en.md#applying-migrations) for the application procedure.

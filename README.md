@@ -81,7 +81,7 @@ flowchart LR
 
 ### 저장 데이터 암호화
 
-사용자 이름과 원본 파일명을 DB에 암호화해 저장합니다. 키는 애플리케이션이 DB 커넥션마다 세션 설정으로 넘기므로 DB에는 남지 않습니다.
+사용자 이름과 원본 파일명을 DB에 암호화해 저장합니다. 키는 애플리케이션이 트랜잭션마다 설정으로 넘기므로 DB에는 남지 않습니다.
 Tmax OpenCrypto 환경에서는 국산 암호화 알고리즘인 ARIA-256을, 해당 알고리즘이 없는 환경에서는 AES-256을 씁니다.
 
 ### MCP 서버
@@ -101,13 +101,11 @@ REST API와 같은 권한 검사를 거쳐, 에이전트 역시도 사용자와 
 ### 실행
 
 ```bash
-cp .env.example .env
-# .env를 열어 OPENAI_API_KEY를 채웁니다. 나머지는 기본값으로 동작합니다.
-
-docker compose up -d --build
+export OPENAI_API_KEY=sk-...   # 또는 .env 에 적어 둡니다
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
-PostgreSQL, MinIO, Kafka, API 서버, 릴레이, 워커가 함께 뜹니다. 스키마는 서버가 기동하면서 Flyway로 적용합니다.
+PostgreSQL, MinIO, API 서버, 워커가 함께 뜹니다. 스키마는 서버가 기동하면서 Flyway로 적용합니다. DB 클러스터에 붙는 dev 구성은 [개발 가이드](docs/DEVELOPMENT.md)에 있습니다.
 
 서버가 준비되면 다음이 `UP`을 반환합니다.
 
@@ -120,42 +118,37 @@ curl localhost:8080/actuator/health
 이 프로젝트에는 토큰 발급이 없고 `X-User-Id` 헤더로 신원을 받습니다. 데모 사용자를 넣지 않으면 모든 요청이 401로 실패합니다.
 
 ```bash
-docker compose exec -T db psql \
-  -U "${DB_USERNAME:-aidocs}" -d "${DB_NAME:-aidocs}" \
-  -v key="${DB_ENCRYPTION_KEY:-local-only-throwaway-key}" -v cipher=aes256 \
+docker compose -f docker-compose.local.yml exec -T postgres psql \
+  -U aidocs -d aidocs \
+  -v key=local-only-throwaway-key -v cipher=aes256 \
   < scripts/seed-demo.sql
 ```
 
-여러 번 실행해도 안전합니다. `.env`에 값을 채웠다면 `set -a; . ./.env; set +a` 로 불러온 뒤 실행하거나, 위 명령의 기본값 자리에 그 값을 직접 적어 주세요.
+여러 번 실행해도 안전합니다.
 
 ### 접속
 
 | 대상 | 주소 |
 |---|---|
 | API | `http://localhost:8080` |
-| MinIO 콘솔 | `http://localhost:9011` |
-| Kafka UI | `http://localhost:8081` |
+| MinIO 콘솔 | `http://localhost:9001` |
 
 ### 종료
 
 ```bash
-docker compose down        # 컨테이너만 내립니다
-docker compose down -v     # 데이터까지 지웁니다
+docker compose -f docker-compose.local.yml down        # 컨테이너만 내립니다
+docker compose -f docker-compose.local.yml down -v     # 데이터까지 지웁니다
 ```
 
 ### 환경 변수
 
-채워야 하는 값은 `OPENAI_API_KEY` 하나입니다. 나머지는 비워 두면 기본값이 들어갑니다.
-
 | 변수명 | 필수 | 설명 |
 |---|:--:|---|
 | `OPENAI_API_KEY` | O | 임베딩 생성에 사용합니다 |
-| `DB_ENCRYPTION_KEY` | X | 사용자명·파일명 암호화 키. 기본값은 로컬 전용입니다 |
 | `COHERE_API_KEY` | X | 검색 결과 재정렬(Rerank)에 사용합니다. 없으면 재정렬 없이 RRF 순서로 응답합니다 |
-| `SERVER_HOST_PORT` | X | API 포트 (기본 8080) |
-| `CORS_ALLOWED_ORIGINS` | X | 허용할 origin (기본 `http://localhost:5173`) |
+| `WORKER_IMAGE` | X | 워커 이미지 (기본 `ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest`) |
 
-전체 목록은 [`.env.example`](.env.example)에 있습니다.
+그 밖의 값은 `docker-compose.local.yml`에 로컬 전용으로 고정되어 있습니다. dev 구성의 환경 변수는 [개발 가이드](docs/DEVELOPMENT.md#환경-변수)에 있습니다.
 
 ---
 

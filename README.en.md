@@ -80,7 +80,7 @@ Documents from another organization appear in neither listings nor search result
 
 ### Encryption at rest
 
-User names and original filenames are encrypted in the database. The key is passed by the application as a session setting on each connection, so it never lives in the database.
+User names and original filenames are encrypted in the database. The key is passed by the application as a setting on each transaction, so it never lives in the database.
 On Tmax OpenCrypto the cipher is ARIA-256, a Korean national standard; where that algorithm is unavailable, AES-256 is used.
 
 ### MCP server
@@ -99,13 +99,11 @@ Document search and listing are exposed as MCP tools, so an AI client such as Cl
 ### Run
 
 ```bash
-cp .env.example .env
-# Open .env and fill in OPENAI_API_KEY. Everything else works at its default.
-
-docker compose up -d --build
+export OPENAI_API_KEY=sk-...   # or put it in .env
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
-PostgreSQL, MinIO, Kafka, the API server, the relay, and the worker all come up together. The server applies the schema with Flyway as it starts.
+PostgreSQL, MinIO, the API server, and the worker all come up together. The server applies the schema with Flyway as it starts. The dev setup that connects to the DB cluster is in the [development guide](docs/DEVELOPMENT.en.md).
 
 Once the server is ready, this returns `UP`.
 
@@ -118,42 +116,37 @@ curl localhost:8080/actuator/health
 This project issues no tokens; identity comes from the `X-User-Id` header. Without a seeded demo user every request fails with 401.
 
 ```bash
-docker compose exec -T db psql \
-  -U "${DB_USERNAME:-aidocs}" -d "${DB_NAME:-aidocs}" \
-  -v key="${DB_ENCRYPTION_KEY:-local-only-throwaway-key}" -v cipher=aes256 \
+docker compose -f docker-compose.local.yml exec -T postgres psql \
+  -U aidocs -d aidocs \
+  -v key=local-only-throwaway-key -v cipher=aes256 \
   < scripts/seed-demo.sql
 ```
 
-Running it repeatedly is safe. If you filled in `.env`, load it first with `set -a; . ./.env; set +a`, or substitute your values for the defaults above.
+Running it repeatedly is safe.
 
 ### Endpoints
 
 | Target | Address |
 |---|---|
 | API | `http://localhost:8080` |
-| MinIO console | `http://localhost:9011` |
-| Kafka UI | `http://localhost:8081` |
+| MinIO console | `http://localhost:9001` |
 
 ### Shut down
 
 ```bash
-docker compose down        # stops the containers
-docker compose down -v     # also deletes the data
+docker compose -f docker-compose.local.yml down        # stops the containers
+docker compose -f docker-compose.local.yml down -v     # also deletes the data
 ```
 
 ### Environment variables
 
-`OPENAI_API_KEY` is the only value you must supply. Leave the rest blank and defaults apply.
-
 | Variable | Required | Description |
 |---|:--:|---|
 | `OPENAI_API_KEY` | Yes | Used to generate embeddings |
-| `DB_ENCRYPTION_KEY` | No | Key for encrypting user names and filenames. The default is for local use only |
-| `COHERE_API_KEY` | No | Used to rerank search results. Without it, results are returned in RRF order without reranking |
-| `SERVER_HOST_PORT` | No | API port (default 8080) |
-| `CORS_ALLOWED_ORIGINS` | No | Allowed origins (default `http://localhost:5173`) |
+| `COHERE_API_KEY` | No | Used to rerank search results. Without it, results come back in RRF order |
+| `WORKER_IMAGE` | No | Worker image (default `ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest`) |
 
-The full list is in [`.env.example`](.env.example).
+Everything else is fixed to local-only values in `docker-compose.local.yml`. Environment variables for the dev setup are in the [development guide](docs/DEVELOPMENT.en.md#environment-variables).
 
 ---
 

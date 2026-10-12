@@ -1,30 +1,75 @@
-# dev 환경 컨테이너. 로컬 개발용은 docker-compose.yml 을 쓴다.
+# dev 스택. API 서버(dev 프로파일)·워커·MinIO 를 로컬에서 띄우고, DB 는 SSH 터널로 DB 클러스터에 붙는다.
 #
-#   docker compose -f docker-compose.dev.yml up -d
+#   cp .env.dev.example .env   # 값을 채운다
+#   docker compose -f docker-compose.dev.yml up -d --build
 #
-# DB는 리모트 Tmax OpenSQL을 사용한다.
-# 접속 정보는 .env 에서 읽으므로 앱과 같은 값을 본다.
-# 앱·릴레이·카프카·워커는 각 이미지가 준비되면 여기에 추가한다.
+# DB 는 db-03 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 간다. 컨테이너끼리는 db-tunnel:6432 를 본다.
+# VPN 으로 VPC 에 붙어 있으면 .env 에서 COMPOSE_PROFILES 를 비우고 COMPOSE_DB_HOST=10.40.1.100 으로 둔다.
+# 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고 호스트 포트도 열지 않는다.
+# 마이그레이션은 자동으로 적용하지 않는다. 적용 규칙은 docs/DEVELOPMENT.md 를 따른다.
+#
+# web(React SPA)은 컨테이너로 띄우지 않는다. 호스트에서 실행하고 localhost:8080 을 바라보게 한다.
 
 name: aidocs-dev
 
 services:
+  db-tunnel:
+    profiles: [ tunnel ]
+    image: alpine:3.20
+    container_name: aidocs-dev-db-tunnel
+    restart: unless-stopped
+    environment:
+      SSH_HOST: ${SSH_HOST:?.env 에 SSH_HOST 가 필요합니다}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:?.env 에 SSH_USER 가 필요합니다}
+      TUNNEL_REMOTE_HOST: ${TUNNEL_REMOTE_HOST:-10.40.1.100}
+      TUNNEL_REMOTE_PORT: ${TUNNEL_REMOTE_PORT:-6432}
+      TZ: Asia/Seoul
+    volumes:
+      # 읽기 전용 바인드 마운트. 이미지에 굽지 않으므로 이미지를 공유해도 키가 따라가지 않는다.
+      - ${SSH_KEY_PATH:?.env 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
+    # 0.0.0.0 은 이 컨테이너의 인터페이스다. 호스트가 아니라 컴포즈 네트워크에만 열린다.
+    # 키는 소유자·권한 검사를 피하려고 컨테이너 안으로 복사해서 쓴다.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-client >/dev/null &&
+        cp /key /tmp/id && chmod 600 /tmp/id &&
+        exec ssh -N \
+          -i /tmp/id \
+          -p "$${SSH_PORT}" \
+          -o StrictHostKeyChecking=accept-new \
+          -o ExitOnForwardFailure=yes \
+          -o ServerAliveInterval=30 \
+          -o ServerAliveCountMax=3 \
+          -L 0.0.0.0:6432:"$${TUNNEL_REMOTE_HOST}":"$${TUNNEL_REMOTE_PORT}" \
+          "$${SSH_USER}@$${SSH_HOST}"
+    healthcheck:
+      # busybox netstat 으로 터널 포트가 열렸는지만 본다. 클러스터가 살아 있는지는
+      # 보지 않는다. 그것은 server 의 actuator/health 가 잡는다.
+      test: [ "CMD-SHELL", "netstat -ltn | grep -q ':6432'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: aidocs-dev-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?.env 에 STORAGE_ACCESS_KEY 가 필요합니다}
-      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?.env 에 STORAGE_SECRET_KEY 가 필요합니다}
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:-aidocs}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:-aidocs1234}
       TZ: Asia/Seoul
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_HOST_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
     volumes:
-      - aidocs-minio-data:/data
+      - aidocs-dev-minio-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -36,15 +81,75 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    environment:
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-aidocs}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $${STORAGE_ACCESS_KEY} $${STORAGE_SECRET_KEY} &&
       mc mb --ignore-existing local/$${STORAGE_BUCKET}
       "
+
+  server:
+    build: .
+    container_name: aidocs-dev-server
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy, required: false }
+      minio: { condition: service_healthy }
     environment:
-      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?.env 에 STORAGE_ACCESS_KEY 가 필요합니다}
-      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?.env 에 STORAGE_SECRET_KEY 가 필요합니다}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:?.env 에 STORAGE_BUCKET 이 필요합니다}
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: ${COMPOSE_DB_HOST:-db-tunnel}
+      DB_PORT: ${COMPOSE_DB_PORT:-6432}
+      # OpenProxy 풀 이름. 실제 DB 는 aidocs 다.
+      DB_NAME: aidocs_session
+      DB_USERNAME: ${DB_USERNAME:-aidocs}
+      DB_PASSWORD: ${DB_PASSWORD:?.env 에 DB_PASSWORD 가 필요합니다}
+      # 이미 저장된 암호문이 이 키로 암호화돼 있다. 값이 다르면 복호화할 수 없다.
+      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY:?.env 에 DB_ENCRYPTION_KEY 가 필요합니다}
+      DB_ENCRYPTION_CIPHER: ${DB_ENCRYPTION_CIPHER:-aria256}
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_REGION: ${STORAGE_REGION:-ap-northeast-2}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-aidocs}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?.env 에 OPENAI_API_KEY 가 필요합니다}
+      # web 은 컨테이너가 아니라 호스트에서 뜨므로 호스트 origin 을 허용한다.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      # 검색 결과 재정렬(Cohere Rerank). COHERE_API_KEY 가 있어야 한다.
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+    ports:
+      - "${SERVER_HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # 워커는 워커 저장소가 올린 이미지를 받아 쓴다.
+  worker:
+    image: ${WORKER_IMAGE:-ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest}
+    container_name: aidocs-dev-worker
+    restart: unless-stopped
+    depends_on:
+      db-tunnel: { condition: service_healthy, required: false }
+      minio: { condition: service_healthy }
+    environment:
+      # OpenProxy aidocs 풀(일감 처리). 파라미터는 OpenProxy 가 요구한다.
+      DB_URL: jdbc:postgresql://${COMPOSE_DB_HOST:-db-tunnel}:${COMPOSE_DB_PORT:-6432}/aidocs?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true&connectTimeout=5&socketTimeout=60
+      # 워커는 스프링 부트라 표준 환경 변수로 Hikari 설정을 받는다. OpenProxy 가 요구하는 연결 초기화다.
+      SPRING_DATASOURCE_HIKARI_CONNECTION_INIT_SQL: "SET SERVER ROLE TO 'default'"
+      SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: "-1"
+      DB_USERNAME: ${DB_USERNAME:-aidocs}
+      DB_PASSWORD: ${DB_PASSWORD:?.env 에 DB_PASSWORD 가 필요합니다}
+      INDEXING_STORAGE_ENDPOINT: http://minio:9000
+      INDEXING_STORAGE_REGION: ${STORAGE_REGION:-ap-northeast-2}
+      INDEXING_STORAGE_BUCKET: ${STORAGE_BUCKET:-aidocs-documents}
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-aidocs}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:-aidocs1234}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?.env 에 OPENAI_API_KEY 가 필요합니다}
 
 volumes:
-  aidocs-minio-data:
+  aidocs-dev-minio-data:

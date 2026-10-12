@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# dev DB(EC2) SSH 터널을 열고 닫는다.
+# DB 클러스터 SSH 터널을 열고 닫는다. db-03 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 연다.
 #
 #   ./scripts/tunnel.sh start
 #   ./scripts/tunnel.sh status
@@ -13,7 +13,7 @@ ENV_FILE="$ROOT/.env"
 SOCKET="$ROOT/.ssh-tunnel.sock"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "error: .env가 없습니다. .env.example을 복사해 값을 채우세요." >&2
+  echo "error: .env가 없습니다. .env.dev.example을 복사해 값을 채우세요." >&2
   exit 1
 fi
 
@@ -28,8 +28,8 @@ SSH_USER="${SSH_USER:-}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-}"
 SSH_PORT="${SSH_PORT:-22}"
 TUNNEL_LOCAL_PORT="${TUNNEL_LOCAL_PORT:-15432}"
-TUNNEL_REMOTE_HOST="${TUNNEL_REMOTE_HOST:-127.0.0.1}"
-TUNNEL_REMOTE_PORT="${TUNNEL_REMOTE_PORT:-5432}"
+TUNNEL_REMOTE_HOST="${TUNNEL_REMOTE_HOST:-10.40.1.100}"
+TUNNEL_REMOTE_PORT="${TUNNEL_REMOTE_PORT:-6432}"
 
 for var in SSH_HOST SSH_USER SSH_KEY_PATH; do
   if [[ -z "${!var}" ]]; then
