@@ -7,6 +7,7 @@ import com.osscontest.server.search.domain.Reranker
 import com.osscontest.server.search.domain.SearchOptions
 import com.osscontest.server.search.domain.SearchResultItem
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
@@ -22,10 +23,13 @@ import java.sql.ResultSet
  * `tenant_id`/`user_id`는 principal_id(VARCHAR) 비교와 tenant_id(BIGINT) 비교에
  * 동시에 쓰이는데, 같은 파라미터를 두 타입으로 바인딩할 수 없어 텍스트 비교용
  * 파라미터를 별도로 둔다.
+ *
+ * 검색은 검색 전용 연결(dev: OpenProxy `aidocs_ro`, Replica)로 읽는다. 이 쿼리들은 암호화 컬럼을
+ * 읽지 않아 트랜잭션에 암호화 키를 넣지 않는다.
  */
 @Repository
 class SearchChunkRepository(
-    private val jdbcTemplate: NamedParameterJdbcTemplate,
+    @Qualifier("searchJdbcTemplate") private val jdbcTemplate: NamedParameterJdbcTemplate,
     private val noriTokenizer: NoriTokenizer,
     private val corpusStatsCache: CorpusStatsCache,
     private val reranker: Reranker,
@@ -33,7 +37,7 @@ class SearchChunkRepository(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "searchTransactionManager", readOnly = true)
     fun hybridSearch(
         tenantId: Long,
         userId: Long,
