@@ -63,15 +63,6 @@ Applications connect to a single VIP, `10.40.1.100:6432`. Normally db-02's OpenP
 - This module only creates the permissions those scripts use (`openproxy_vip.tf`) and the VRRP security group rule. The permissions are limited to assigning and unassigning secondary IPs on the db-02 and db-03 ENIs.
 - Terraform does not manage the VIP. `aws_instance` ignores changes to `secondary_private_ips`.
 
-**Before the first apply (once)**
-
-These resources were created in the console on 2026-10-12, so the import blocks in `openproxy_vip_import.tf` bring them into state.
-
-1. Find the security group rule ID (`sgr-…`) and replace `sgr-REPLACE_ME` in `openproxy_vip_import.tf`. The lookup command is in the file's comment.
-2. Apply the updated `iam-policy.json` to the IAM user that runs apply. The new statements are `ManageOpenProxyVipIam`, `PassOpenProxyVipRoleToEc2` and `AttachInstanceProfiles`.
-3. In `terraform plan`, expect only the 5 imports and small in-place updates such as tags or descriptions on the policy, role and profile. The same profile is already attached to db-02 and db-03 from the console, so `iam_instance_profile` should show no change. Do not apply if any instance or existing rule would be destroyed or replaced.
-4. After apply, delete `openproxy_vip_import.tf`.
-
 **Note**
 
 - Recreating db-02 or db-03 changes its ENI ID. Terraform updates the policy, but `vip_demote.sh` on the servers lists both ENI IDs and must be updated too.

@@ -63,15 +63,6 @@ terraform output public_ips
 - 이 구성은 그 스크립트가 쓰는 권한(`openproxy_vip.tf`)과 VRRP 보안 그룹 규칙만 만든다. 권한은 db-02·db-03 ENI의 보조 IP 할당·해제로 좁혀 두었다.
 - VIP는 Terraform이 관리하지 않는다. `aws_instance`는 `secondary_private_ips` 변경을 무시한다.
 
-**처음 apply 전 (한 번만)**
-
-위 자원은 2026-10-12에 콘솔에서 먼저 만들었다. 그래서 `openproxy_vip_import.tf`의 import 블록으로 가져온다.
-
-1. 보안 그룹 규칙 ID(`sgr-…`)를 찾아 `openproxy_vip_import.tf`의 `sgr-REPLACE_ME`를 바꾼다. 찾는 명령은 파일 주석에 있다.
-2. apply할 IAM 사용자에게 바뀐 `iam-policy.json`을 적용한다. 새로 추가된 문장은 `ManageOpenProxyVipIam`, `PassOpenProxyVipRoleToEc2`, `AttachInstanceProfiles`다.
-3. `terraform plan`에서 import 5개와, 정책·역할·프로파일의 태그·설명 같은 작은 제자리 변경만 보이는지 확인한다. db-02·db-03에는 콘솔에서 같은 프로파일을 붙여 두어서 `iam_instance_profile` 변경이 없어야 한다. 인스턴스나 기존 규칙이 지워지거나 다시 만들어지면 apply하지 않는다.
-4. apply한 뒤 `openproxy_vip_import.tf`를 지운다.
-
 **주의**
 
 - db-02·db-03 인스턴스를 다시 만들면 ENI ID가 바뀐다. 정책은 Terraform이 다시 맞추지만, 서버의 `vip_demote.sh`에는 두 ENI ID가 적혀 있어서 함께 고쳐야 한다.
