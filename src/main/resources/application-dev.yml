@@ -2,13 +2,23 @@ spring:
   config:
     import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    # DB 클러스터의 OpenProxy(VIP)를 거친다. assumeMinServerVersion·preferQueryMode 는 OpenProxy 가 요구한다.
+    # socketTimeout 은 오래 걸리는 마이그레이션을 돌릴 때만 DB_SOCKET_TIMEOUT 으로 늘린다.
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true&connectTimeout=5&socketTimeout=${DB_SOCKET_TIMEOUT:60}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     hikari:
-      data-source-properties:
-        # pgJDBC startup option으로 모든 물리 연결의 세션 설정에 암호화 키를 넣는다.
-        options: "-c app.encryption_key=${DB_ENCRYPTION_KEY}"
+      # OpenProxy aidocs_session 풀 크기(14)를 넘지 않게 잡는다.
+      maximum-pool-size: 10
+      connection-timeout: 5000
+      max-lifetime: 1800000
+      keepalive-time: 30000
+      exception-override-class-name: com.osscontest.server.config.OpenProxyExceptionOverride
+      # OpenProxy 1.1.3 은 풀의 default_role 을 접속 때 적용하지 않아 연결마다 직접 정한다. 이 한 문장만 둔다.
+      connection-init-sql: "SET SERVER ROLE TO 'default'"
+      # Hikari 는 풀의 첫 연결에서 init SQL 보다 점검 쿼리를 먼저 보내 그 연결 하나가 실패한다.
+      # 기동을 막지 않게 하고, 연결은 요청 때 다시 시도한다.
+      initialization-fail-timeout: -1
   flyway:
     enabled: false
     clean-disabled: true
