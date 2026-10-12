@@ -1,14 +1,37 @@
--- PENDING / NOT APPLIED. API/DB owner applies manually, never the Worker.
--- Cumulative Worker contract since efb3eb7; also supports already-applied older queue proposals.
--- Stop old unfenced/circuit Writers, drain or externally recover PROCESSING Jobs first.
--- Existing naive Job timestamps must represent UTC. Do not run the older queue/retry proposals afterwards.
--- Recovery procedure/scheduler/HA implementation is intentionally excluded.
+-- =============================================================================
+-- DB Job 큐 스키마
+--
+-- Kafka 기반 작업 전달을 DB Job 큐로 대체한다. 실행 번호(execution_epoch),
+-- lease, 등록 순서(enqueue_seq), 외부 API 서킷 브레이커 테이블을 추가한다.
+--
+-- 스키마는 API 서버가 소유하고 Flyway 로 적용한다. Worker 는 적용하지 않는다.
+-- 이전 큐 제안 스키마를 적용한 DB 에서도 돌도록 IF NOT EXISTS 로 쓴다.
+--
+-- 적용 전 조건
+-- - epoch 검사가 없는 이전 Writer 와 이전 서킷 브레이커 호출자를 멈춘다
+-- - PROCESSING Job 을 비우거나 밖에서 복구한다. 남아 있으면 아래 검사에서 중단한다
+-- - 기존 Job 의 시간대 없는 timestamp 는 UTC 값이어야 한다. UTC 로 해석해 변환한다
+--
+-- Job 회수 절차, external_circuit_result 정리, 스케줄러, HA 는 이 파일에 넣지 않는다.
+-- 기존 Core 제약·FK·pgvector 는 그대로 필요하다.
+-- =============================================================================
+
 BEGIN;
+
+-- PROCESSING Job 잔존 검사
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM indexing_job WHERE status='PROCESSING') THEN
         RAISE EXCEPTION 'Stop/drain or externally recover PROCESSING Jobs before this migration';
 END IF;
 END $$;
+
+-- -----------------------------------------------------------------------------
+-- 큐 컬럼 추가
+--
+-- DELETE Job 은 문서 단위라 document_version_id 가 없으므로 NULL 을 허용한다.
+-- Kafka record 위치 컬럼은 DB 큐로 바뀌며 쓰지 않고, lease_expires_at 은 lease_until 로 대체한다.
+-- -----------------------------------------------------------------------------
+
 ALTER TABLE document ADD COLUMN IF NOT EXISTS execution_epoch BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE indexing_job
     ADD COLUMN IF NOT EXISTS execution_epoch BIGINT NOT NULL DEFAULT 0,
@@ -20,6 +43,9 @@ ALTER COLUMN document_version_id DROP NOT NULL,
     DROP COLUMN IF EXISTS kafka_topic,
     DROP COLUMN IF EXISTS kafka_partition,
     DROP COLUMN IF EXISTS kafka_offset;
+
+-- enqueue_seq 부여와 timestamp 시간대 변환
+-- 기존 행은 created_at, id 순서로 번호를 매기고, 시퀀스를 그 최댓값 뒤로 맞춘다.
 DO $$
     DECLARE col TEXT;
 BEGIN
@@ -38,6 +64,10 @@ EXECUTE format('ALTER TABLE indexing_job ALTER COLUMN %I TYPE TIMESTAMPTZ USING 
 END IF;
 END LOOP;
 END $$;
+
+-- 이전 제안 스키마 컬럼 정규화
+-- 이전 제안을 적용한 DB 에는 같은 컬럼이 NULL 허용이나 다른 타입으로 이미 있다.
+-- ADD COLUMN IF NOT EXISTS 는 이를 건너뛰므로 값을 채우고 타입·제약을 다시 건다.
 UPDATE document SET execution_epoch=0 WHERE execution_epoch IS NULL;
 UPDATE indexing_job SET execution_epoch=0 WHERE execution_epoch IS NULL;
 UPDATE indexing_job SET job_type='INDEX' WHERE job_type IS NULL;
@@ -47,11 +77,22 @@ ALTER TABLE indexing_job ALTER COLUMN execution_epoch TYPE BIGINT,
 ALTER COLUMN execution_epoch SET DEFAULT 0, ALTER COLUMN execution_epoch SET NOT NULL,
 ALTER COLUMN job_type SET DEFAULT 'INDEX', ALTER COLUMN job_type SET NOT NULL,
 ALTER COLUMN enqueue_seq SET NOT NULL;
+
+-- 문서 epoch 가 그 문서 Job 들의 최대 epoch 보다 작지 않도록 끌어올린다.
 UPDATE document d SET execution_epoch=GREATEST(d.execution_epoch,h.epoch)
 FROM (SELECT document_id,MAX(execution_epoch) AS epoch FROM indexing_job GROUP BY document_id) h WHERE d.id=h.document_id;
--- Release legacy metadata only. No terminal state is reset and no recovery decision is made here.
+
+-- 이전 lease 메타데이터 해제
+-- 종결 상태를 되돌리거나 회수 판단을 하지 않는다. worker_id·lease_until 만 비운다.
 UPDATE indexing_job SET worker_id=NULL,lease_until=NULL WHERE status<>'PROCESSING';
--- Reuse equivalent valid non-partial UNIQUE indexes regardless of the Core constraint name.
+
+-- -----------------------------------------------------------------------------
+-- 인덱스
+--
+-- UNIQUE 인덱스는 이름이 달라도 같은 컬럼에 유효한 비부분 UNIQUE 인덱스가 있으면
+-- 재사용한다. Core 스키마의 제약 이름에 기대지 않기 위해서다.
+-- -----------------------------------------------------------------------------
+
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_index WHERE indrelid='indexing_job'::regclass AND indisunique
         AND indisvalid AND indpred IS NULL AND indexprs IS NULL AND indnkeyatts=1
@@ -71,17 +112,36 @@ IF NOT EXISTS (SELECT 1 FROM pg_index WHERE indrelid='document_chunk'::regclass 
 CREATE UNIQUE INDEX uq_document_chunk_version_chunk ON document_chunk(document_version_id,chunk_no);
 END IF;
 END $$;
+
+-- 미종결 Job 조회용 partial index
+-- 완료·실패 이력 전체를 매번 순회하지 않도록 미종결 상태만 인덱싱한다.
 DROP INDEX IF EXISTS idx_indexing_job_retry_admission;
+
+-- 같은 문서의 앞선 미종결 Job 확인
 DROP INDEX IF EXISTS idx_indexing_job_document_order;
 CREATE INDEX idx_indexing_job_document_order ON indexing_job(document_id,enqueue_seq)
     WHERE status IN ('PENDING','PROCESSING','RETRY_WAIT');
+
+-- claim 후보를 등록 순서대로 조회
 CREATE INDEX IF NOT EXISTS idx_indexing_job_claim_order ON indexing_job(enqueue_seq)
     WHERE status IN ('PENDING','RETRY_WAIT');
+
+-- 재시도 시각이 된 Job 조회
 CREATE INDEX ix_indexing_job_retry_due
     ON indexing_job (next_retry_at)
     WHERE status = 'RETRY_WAIT';
+
+-- lease 가 만료된 Job 회수
 DROP INDEX IF EXISTS idx_indexing_job_expired_lease;
 CREATE INDEX idx_indexing_job_expired_lease ON indexing_job(lease_until) WHERE status='PROCESSING';
+
+-- -----------------------------------------------------------------------------
+-- 제약
+--
+-- 이미 있는 제약은 이름으로 확인해 건너뛴다. ck_indexing_job_lease 만 기존 정의를
+-- 지우고 다시 건다. PROCESSING 일 때만 worker_id 와 lease_until 을 가진다.
+-- -----------------------------------------------------------------------------
+
 ALTER TABLE indexing_job DROP CONSTRAINT IF EXISTS ck_indexing_job_lease;
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='document'::regclass AND conname='ck_document_execution_epoch') THEN
@@ -101,10 +161,19 @@ END $$;
 ALTER TABLE indexing_job ADD CONSTRAINT ck_indexing_job_lease CHECK(
     (status='PROCESSING' AND worker_id IS NOT NULL AND lease_until IS NOT NULL) OR
     (status IN ('PENDING','RETRY_WAIT','COMPLETED','FAILED') AND worker_id IS NULL AND lease_until IS NULL));
--- document_version.embedding_version_no and document.latest_embedding_version_no remain shared Core metadata.
--- The Worker no longer maps the former; removing an ORM property is not a DROP COLUMN authorization.
 
--- CIRCUIT SCHEMA BEGIN
+-- document_version.embedding_version_no 와 document.latest_embedding_version_no 는
+-- Core 가 소유한 공용 메타데이터라 지우지 않는다. Worker 가 앞의 컬럼을 더 이상
+-- 매핑하지 않아도 컬럼 삭제 근거가 되지 않는다.
+
+-- -----------------------------------------------------------------------------
+-- 외부 API 서킷 브레이커
+--
+-- 상태는 external_circuit_breaker 에, 호출 결과는 call_id 단위로
+-- external_circuit_result 에 남긴다. 결과 행에는 어느 generation 에 대한 호출인지와
+-- 실제로 상태에 반영됐는지(applied)를 함께 기록한다.
+-- -----------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS external_circuit_breaker (
                                                         name VARCHAR(50) PRIMARY KEY,
                                                         state VARCHAR(20) NOT NULL DEFAULT 'CLOSED',
@@ -120,7 +189,9 @@ ALTER TABLE external_circuit_breaker
     ADD COLUMN IF NOT EXISTS probe_reserved_until TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS probe_call_id TEXT,
     ADD COLUMN IF NOT EXISTS probe_call_until TIMESTAMPTZ;
--- Old HALF_OPEN had no owner/generation. Old callers must already be stopped.
+
+-- 이전 HALF_OPEN 은 probe 소유자와 generation 이 없어 OPEN 으로 되돌린다.
+-- 이전 호출자는 이 시점에 이미 멈춰 있어야 한다.
 UPDATE external_circuit_breaker SET state='OPEN',generation=generation+1,
                                     opened_until=clock_timestamp() WHERE state='HALF_OPEN' AND probe_owner IS NULL;
 ALTER TABLE external_circuit_breaker DROP CONSTRAINT IF EXISTS ck_external_circuit_breaker_open;
@@ -149,6 +220,5 @@ CREATE TABLE IF NOT EXISTS external_circuit_result (
 );
 CREATE INDEX IF NOT EXISTS idx_circuit_result_generation ON external_circuit_result(breaker_name,generation);
 INSERT INTO external_circuit_breaker(name) VALUES('embedding-api') ON CONFLICT(name) DO NOTHING;
--- CIRCUIT SCHEMA END
+
 COMMIT;
--- No receipt cleanup/recovery/scheduler is installed. Existing Core constraints/FKs/pgvector remain required.
