@@ -2,8 +2,8 @@
 """
 청크 JSONL 을 받아 LLM 으로 질의-정답 쌍(평가 답안지)을 만든다.
 
-dump_chunks.sh 로 뽑은 청크를 입력으로 받아 search_test.py / rerank_ab.py 가 그대로 읽는
-형식([{chunk_id, document_id, question}, ...])으로 낸다.
+청크 JSONL(한 줄에 {chunk_id, document_id, chunk_no, title, content} 하나)을 입력으로 받아
+search_test.py / rerank_ab.py 가 그대로 읽는 형식([{chunk_id, document_id, question}, ...])으로 낸다.
 
 기존 52건 답안지와 같은 3단계 파이프라인을 쓴다(docs/SEARCH.md 2절, Bai et al. 2024).
 
@@ -18,7 +18,6 @@ n-gram 을 공유하면(--max-ngram-overlap) 3단계를 통과했어도 버린�
 
 사용법:
     set -a; . ./.env.integration; set +a          # OPENAI_API_KEY 를 셸로 불러온다
-    ./scripts/eval/dump_chunks.sh --doc-ids 130 --limit 40 > /tmp/chunks.jsonl
     python3 scripts/eval/build_qa_set.py --chunks /tmp/chunks.jsonl --count 30 \\
         --out scripts/eval/qa_set_mine.json --audit /tmp/qa_audit.json
 
@@ -171,7 +170,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="청크에서 평가용 질의-정답 쌍을 만든다",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--chunks", required=True, help="dump_chunks.sh 가 낸 JSONL")
+    parser.add_argument("--chunks", required=True, help="청크 JSONL")
     parser.add_argument("--out", required=True, help="답안지를 저장할 경로")
     parser.add_argument("--audit", help="버려진 것까지 포함한 전체 기록을 저장할 경로")
     parser.add_argument("--count", type=int, default=30, help="목표 질의 수")
