@@ -46,7 +46,7 @@ The initial evaluation concluded that turning reranking on lowered accuracy, so 
 
 **Cause**: at the time of the initial measurement, the Cohere API key was a Trial key (limited to 10 requests/minute). Reranking is designed fail-open — if it fails, the request isn't failed outright, it silently falls back to the RRF order (`SearchChunkRepository.rerank()`) — and 429 responses also take this path. So even with `rerank=true` on the request, a large share of responses had actually never gone through reranking, and those were mixed into the "after reranking" numbers. Server logs (`docker logs | grep 리랭킹 실패`) showed that 23% of requests in the original measurement had fallen through this path.
 
-**Re-measurement**: we rate-limited the calls (5–9 per minute) to reduce the fail-open share, and re-measured using a paired design that ran the same query with rerank on and off side by side (`scripts/eval/rerank_ab.py`). Reranking won on both the existing 52-query pool and a newly built 21-query set drawn from documents the original pool didn't use (`scripts/eval/build_qa_set.py`).
+**Re-measurement**: we rate-limited the calls (5–9 per minute) to reduce the fail-open share, and re-measured using a paired design that ran the same query with rerank on and off side by side (`scripts/eval/rerank_ab.py`). Reranking won on both the existing 52-query pool and a newly built 21-query set drawn from documents the original pool didn't use (`scripts/eval/build_qa_set.py`, `scripts/eval/dump_chunks.sh`).
 
 | | Existing 52 (off) | Existing 52 (on) | New 21 (off) | New 21 (on) |
 |---|---|---|---|---|

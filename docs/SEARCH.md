@@ -46,7 +46,7 @@
 
 **원인**: 최초 측정 시점의 Cohere API 키가 Trial(분당 10회 제한)이었다. 리랭킹이 실패해도 검색 자체는 실패시키지 않고 RRF 순서로 조용히 대체하도록(fail-open) 짜여 있는데(`SearchChunkRepository.rerank()`), 429 응답도 이 경로를 탄다. 그래서 `rerank=true`로 요청해도 응답 상당수가 실제로는 재정렬을 거치지 않은 RRF 결과였고, 그게 섞인 채로 "rerank 이후" 지표를 냈다 — 서버 로그(`docker logs | grep 리랭킹 실패`)로 확인한 원래 측정에서는 요청의 23%가 이 경로로 빠져 있었다.
 
-**재측정**: 호출 간격을 제한(분당 5~9건)해 fail-open 비중을 낮추고, 같은 질의를 rerank on/off로 나란히 돌리는 짝지은(paired) 방식으로 다시 쟀다(`scripts/eval/rerank_ab.py`). 기존 52개 평가 풀과, 그 풀이 쓰지 않은 문서에서 새로 만든 21개 질의(`scripts/eval/build_qa_set.py`) 양쪽 모두 rerank가 이겼다.
+**재측정**: 호출 간격을 제한(분당 5~9건)해 fail-open 비중을 낮추고, 같은 질의를 rerank on/off로 나란히 돌리는 짝지은(paired) 방식으로 다시 쟀다(`scripts/eval/rerank_ab.py`). 기존 52개 평가 풀과, 그 풀이 쓰지 않은 문서에서 새로 만든 21개 질의(`scripts/eval/build_qa_set.py`, `scripts/eval/dump_chunks.sh`) 양쪽 모두 rerank가 이겼다.
 
 | | 기존 52개 (off) | 기존 52개 (on) | 새 21개 (off) | 새 21개 (on) |
 |---|---|---|---|---|
