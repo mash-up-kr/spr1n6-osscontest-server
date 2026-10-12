@@ -26,11 +26,21 @@ docker compose -f docker-compose.local.yml up -d postgres minio minio-init
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-server·worker까지 컨테이너로 띄우려면 서비스 이름 없이 올린다. `OPENAI_API_KEY`는 셸 환경 변수나 `.env`에서 읽는다.
+server·worker까지 컨테이너로 띄우려면 서비스 이름 없이 올린다.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+`.env` 파일은 필요 없다. DB·암호화 키·MinIO 값은 `application-local.yml`과 `docker-compose.local.yml`에 로컬 전용으로 고정돼 있다. 외부 API 키만 넘긴다.
+
+| 변수 | 필수 | 설명 |
+|---|:--:|---|
+| `OPENAI_API_KEY` | X | 임베딩. 없으면 서버는 뜨지만 인덱싱과 벡터 검색이 동작하지 않는다 |
+| `COHERE_API_KEY` | X | 검색 결과 재정렬. 없으면 RRF 순서로 응답한다 |
+
+- gradle로 띄울 때는 셸 환경 변수로만 읽는다(`export OPENAI_API_KEY=...`). `local` 프로파일은 `.env`를 읽지 않는다.
+- 컴포즈로 띄울 때는 셸 환경 변수나 프로젝트 루트의 `.env`에서 읽는다. dev용 `.env`가 있어도 이 두 값만 가져간다.
 
 원본 파일은 MinIO에 저장한다. 컨테이너가 뜰 때 `aidocs-documents` 버킷이 함께 만들어지므로 별도 준비가 필요 없고, `http://localhost:9001` 콘솔에서 확인할 수 있다.
 

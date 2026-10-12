@@ -26,11 +26,21 @@ docker compose -f docker-compose.local.yml up -d postgres minio minio-init
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-To run server and worker as containers too, bring it up without service names. `OPENAI_API_KEY` is read from the shell environment or `.env`.
+To run server and worker as containers too, bring it up without service names.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+No `.env` file is needed. DB, encryption key and MinIO values are fixed for local use in `application-local.yml` and `docker-compose.local.yml`. Only external API keys are passed in.
+
+| Variable | Required | Description |
+|---|:--:|---|
+| `OPENAI_API_KEY` | X | Embeddings. Without it the server starts, but indexing and vector search don't work |
+| `COHERE_API_KEY` | X | Search result reranking. Without it results come back in RRF order |
+
+- With gradle, they are read only from the shell environment (`export OPENAI_API_KEY=...`). The `local` profile does not read `.env`.
+- With compose, they are read from the shell environment or the `.env` in the project root. Even if a dev `.env` exists, only these two values are taken from it.
 
 Original files are stored in MinIO. The `aidocs-documents` bucket is created when the container starts, so no extra setup is needed. You can browse it in the console at `http://localhost:9001`.
 
