@@ -38,13 +38,14 @@ data "aws_iam_policy_document" "openproxy_vip" {
 }
 
 resource "aws_iam_policy" "openproxy_vip" {
-  name   = "openproxy-vip-assign"
+  name   = "openproxy-vip-role"
   policy = data.aws_iam_policy_document.openproxy_vip.json
   tags   = local.common_tags
 }
 
 resource "aws_iam_role" "openproxy_vip" {
   name               = "openproxy-vip-role"
+  description        = "Allows EC2 instances to call AWS services on your behalf."
   assume_role_policy = data.aws_iam_policy_document.openproxy_vip_assume.json
   tags               = local.common_tags
 }

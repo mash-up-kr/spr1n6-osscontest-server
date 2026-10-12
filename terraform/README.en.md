@@ -12,7 +12,7 @@ Creates the three DB nodes for the OpenSQL HA cluster in the Seoul region (`ap-n
 | EC2 × 3 | `t3.small`, Rocky Linux 9, encrypted gp3 30GiB, 2GiB swap |
 | Elastic IP | One per node, so the address survives stop/start |
 | Security group | See [Ports](#ports) |
-| OpenProxy VIP permissions | IAM policy `openproxy-vip-assign`, role and instance profile `openproxy-vip-role` (attached to db-02 and db-03). See [OpenProxy VIP](#openproxy-vip) |
+| OpenProxy VIP permissions | IAM policy `openproxy-vip-role`, role and instance profile `openproxy-vip-role` (attached to db-02 and db-03). See [OpenProxy VIP](#openproxy-vip) |
 
 | Node | Hostname | Private IP |
 |---|---|---|

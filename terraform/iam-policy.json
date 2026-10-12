@@ -146,7 +146,7 @@
       ],
       "Resource": [
         "arn:aws:iam::*:role/openproxy-vip-role",
-        "arn:aws:iam::*:policy/openproxy-vip-assign",
+        "arn:aws:iam::*:policy/openproxy-vip-role",
         "arn:aws:iam::*:instance-profile/openproxy-vip-role"
       ]
     },

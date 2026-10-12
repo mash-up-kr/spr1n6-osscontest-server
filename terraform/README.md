@@ -12,7 +12,7 @@ OpenSQL HA 클러스터를 올릴 DB 노드 3대를 서울 리전(`ap-northeast-
 | EC2 3대 | `t3.small`, Rocky Linux 9, 암호화된 gp3 30GiB, 스왑 2GiB |
 | Elastic IP | 노드마다 하나. 인스턴스를 껐다 켜도 접속 주소가 바뀌지 않는다 |
 | 보안 그룹 | 아래 [포트](#포트) 참고 |
-| OpenProxy VIP 권한 | IAM 정책 `openproxy-vip-assign`, 역할·인스턴스 프로파일 `openproxy-vip-role`(db-02·db-03에 연결). 아래 [OpenProxy VIP](#openproxy-vip) 참고 |
+| OpenProxy VIP 권한 | IAM 정책 `openproxy-vip-role`, 역할·인스턴스 프로파일 `openproxy-vip-role`(db-02·db-03에 연결). 아래 [OpenProxy VIP](#openproxy-vip) 참고 |
 
 | 노드 | 호스트 이름 | 사설 IP |
 |---|---|---|

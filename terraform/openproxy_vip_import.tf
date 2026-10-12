@@ -1,18 +1,14 @@
 # One-time imports: these were created in the AWS console on 2026-10-12.
-# Fill in the sgr- ID, run plan/apply once, then delete this file.
-# Find the rule ID:
-#   aws ec2 describe-security-group-rules --region ap-northeast-2 \
-#     --filters Name=group-id,Values=<security_group_id output> \
-#     --query "SecurityGroupRules[?IpProtocol=='112'].SecurityGroupRuleId" --output text
+# Run plan/apply once, then delete this file.
 
 import {
   to = aws_vpc_security_group_ingress_rule.vrrp
-  id = "sgr-REPLACE_ME"
+  id = "sgr-0304bffb1ce3d499e"
 }
 
 import {
   to = aws_iam_policy.openproxy_vip
-  id = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/openproxy-vip-assign"
+  id = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/openproxy-vip-role"
 }
 
 import {
@@ -22,7 +18,7 @@ import {
 
 import {
   to = aws_iam_role_policy_attachment.openproxy_vip
-  id = "openproxy-vip-role/arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/openproxy-vip-assign"
+  id = "openproxy-vip-role/arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/openproxy-vip-role"
 }
 
 import {
