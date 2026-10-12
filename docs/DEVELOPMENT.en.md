@@ -6,12 +6,12 @@ This document is for contributors. If you just want to spin up the app and try i
 
 ---
 
-## Choosing a development mode
+## Environments
 
-| Profile | DB | Compose file |
-|---|---|---|
-| `local` | Container PostgreSQL | `docker-compose.local.yml` |
-| `dev` | DB cluster (SSH tunnel → OpenProxy) | `docker-compose.dev.yml` |
+| Profile | Purpose | DB | Compose file |
+|---|---|---|---|
+| `local` | Development and tests | Container PostgreSQL | `docker-compose.local.yml` |
+| `dev` | Testing against the DB cluster (HA tests, feature demos) | DB cluster (SSH tunnel → OpenProxy) | `docker-compose.dev.yml` |
 
 With either profile you can run the app with gradle, or bring up server and worker with compose too. When you only touch server code, running just the infrastructure in containers and the app with gradle is the fastest. Tests run against the `local` infrastructure.
 

@@ -6,12 +6,12 @@
 
 ---
 
-## 개발 방식 고르기
+## 실행 환경
 
-| 프로파일 | DB | 컴포즈 파일 |
-|---|---|---|
-| `local` | 컨테이너 PostgreSQL | `docker-compose.local.yml` |
-| `dev` | DB 클러스터 (SSH 터널 → OpenProxy) | `docker-compose.dev.yml` |
+| 프로파일 | 용도 | DB | 컴포즈 파일 |
+|---|---|---|---|
+| `local` | 개발·테스트 | 컨테이너 PostgreSQL | `docker-compose.local.yml` |
+| `dev` | DB 클러스터에 붙여 보는 시험 (HA 시험, 기능 시연) | DB 클러스터 (SSH 터널 → OpenProxy) | `docker-compose.dev.yml` |
 
 각 프로파일은 앱을 gradle로 띄우거나, 컴포즈로 server·worker까지 함께 띄운다. 서버 코드만 만질 때는 인프라만 컨테이너로 띄우고 gradle로 앱을 실행하는 쪽이 가장 빠르다. 테스트는 `local` 인프라로 돈다.
 
