@@ -1,0 +1,74 @@
+# 테스트는 local 프로파일로 PostgreSQL(pgvector, pgcrypto)과 MinIO 에 붙는다.
+# docker-compose.local.yml 의 postgres·minio·minio-init 과 같은 환경을 만든 뒤 ./gradlew test 를 돌린다.
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        # init_schema 가 CREATE EXTENSION vector 를 실행하므로 pgvector 이미지가 필요하다.
+        image: pgvector/pgvector:0.8.1-pg17
+        env:
+          POSTGRES_DB: aidocs
+          POSTGRES_USER: aidocs
+          POSTGRES_PASSWORD: aidocs
+          TZ: Asia/Seoul
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aidocs -d aidocs"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 로컬 컨테이너의 scripts/local-db 초기화 스크립트와 같다. 서비스 컨테이너는 볼륨을 붙일 수 없어 직접 실행한다.
+      - name: PostgreSQL 확장 설치
+        env:
+          PGPASSWORD: aidocs
+        run: psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 -f scripts/local-db/00-extensions.sql
+
+      # 서비스 컨테이너는 command 를 받지 못해 MinIO 는 직접 띄운다.
+      - name: MinIO 기동과 버킷 생성
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=aidocs -e MINIO_ROOT_PASSWORD=aidocs1234 \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 2
+          done
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z -c \
+            "mc alias set local http://localhost:9000 aidocs aidocs1234 && mc mb --ignore-existing local/aidocs-documents"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: 테스트
+        run: ./gradlew test
+
+      - name: 테스트 리포트 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
+          retention-days: 7
