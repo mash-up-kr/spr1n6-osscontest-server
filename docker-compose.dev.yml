@@ -140,7 +140,7 @@ services:
       # OpenProxy aidocs 풀(일감 처리). 파라미터는 OpenProxy 가 요구한다.
       DB_URL: jdbc:postgresql://${COMPOSE_DB_HOST:-db-tunnel}:${COMPOSE_DB_PORT:-6432}/aidocs?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true
       # 워커는 스프링 부트라 표준 환경 변수로 Hikari 설정을 받는다. OpenProxy 가 요구하는 연결 초기화다.
-      SPRING_DATASOURCE_HIKARI_CONNECTION_INIT_SQL: "SET SERVER ROLE TO 'default'"
+      SPRING_DATASOURCE_HIKARI_CONNECTIONINITSQL: "SET SERVER ROLE TO 'default'"
       SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: "-1"
       DB_USERNAME: ${DB_USERNAME:-aidocs}
       DB_PASSWORD: ${DB_PASSWORD:?.env 에 DB_PASSWORD 가 필요합니다}
