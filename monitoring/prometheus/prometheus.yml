@@ -1,5 +1,5 @@
-# 노드 3대의 Patroni 지표를 2초마다 모은다. 주소는 patroni-tunnel 컨테이너가 연 포트다.
-# 노드를 고정 목록으로 두므로 Patroni 가 멈춘 노드도 목록에서 빠지지 않고 up=0 으로 남는다.
+# 클러스터 지표를 2초마다 모은다. 주소는 모두 cluster-tunnel 컨테이너가 연 포트다(monitoring/cluster-tunnel/entrypoint.sh).
+# 노드를 고정 목록으로 두므로 멈춘 노드도 목록에서 빠지지 않고 up=0 으로 남는다.
 
 global:
   scrape_interval: 2s
@@ -14,9 +14,32 @@ scrape_configs:
     # Patroni 는 버전 없는 text/plain 으로 응답한다. Prometheus 3 은 형식을 정해 주지 않으면 수집을 거부한다.
     fallback_scrape_protocol: PrometheusText0.0.4
     static_configs:
-      - targets: [ "patroni-tunnel:8001" ]
+      - targets: [ "cluster-tunnel:8001" ]
         labels: { node: db-01, member: postgresql1, host: 10.40.1.11 }
-      - targets: [ "patroni-tunnel:8002" ]
+      - targets: [ "cluster-tunnel:8002" ]
         labels: { node: db-02, member: postgresql2, host: 10.40.1.12 }
-      - targets: [ "patroni-tunnel:8003" ]
+      - targets: [ "cluster-tunnel:8003" ]
         labels: { node: db-03, member: postgresql3, host: 10.40.1.13 }
+
+  - job_name: etcd
+    static_configs:
+      - targets: [ "cluster-tunnel:2381" ]
+        labels: { node: db-01, host: 10.40.1.11 }
+      - targets: [ "cluster-tunnel:2382" ]
+        labels: { node: db-02, host: 10.40.1.12 }
+      - targets: [ "cluster-tunnel:2383" ]
+        labels: { node: db-03, host: 10.40.1.13 }
+
+  # openproxy.toml 의 enable_prometheus_exporter 를 켠 서버만 응답한다.
+  - job_name: openproxy
+    static_configs:
+      - targets: [ "cluster-tunnel:9932" ]
+        labels: { node: db-02, host: 10.40.1.12 }
+      - targets: [ "cluster-tunnel:9933" ]
+        labels: { node: db-03, host: 10.40.1.13 }
+
+  # VIP 위치와 OpenProxy 응답. 지표 안에 node·host 가 들어 있다.
+  - job_name: node-probe
+    honor_labels: true
+    static_configs:
+      - targets: [ "cluster-tunnel:9100" ]
