@@ -129,6 +129,31 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE_DB_HOST=10.40.1.100` in `.env`. The stack then connects to the VIP directly without `db-tunnel`.
 
+### Node monitoring dashboard
+
+Shows the role (Leader/Replica), state and replication lag of the three DB nodes in Grafana. It carries the same information as `patronictl list` and refreshes every 2 seconds. It runs separately from the dev stack.
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+# http://localhost:3030  the home page is the "OpenSQL HA 노드 현황" dashboard
+docker compose -f docker-compose.monitoring.yml down
+```
+
+The data comes from the metrics Patroni exposes on each node (`8008/metrics`). Port 8008 is open only inside the cluster, so the `patroni-tunnel` container reaches it through an SSH tunnel via db-01. It uses the same `SSH_*` values in `.env` as the dev stack and installs nothing on the DB servers.
+
+| Panel | Content |
+|---|---|
+| Top numbers | Leader node, streaming replica count, responding node count, TL, max lag |
+| 노드 현황 (node status) | Member, IP, role, state, TL, lag and Postgres start time per node |
+| 노드별 상태 변화 (state changes) | Colored bands showing when each node's state changed |
+| Replica Lag | Bytes each replica is behind the leader |
+
+The three nodes are a fixed list. A node whose Patroni is stopped or whose server is down stays on the dashboard as a red `응답 없음` (no response). `patronictl list` shows it as `stopped` and drops the row about 30 seconds later. The rules that compute role, state and lag are in `monitoring/prometheus/rules.yml`.
+
+Lag is the leader's written WAL position minus the replica's received WAL position. Nodes are scraped up to 2 seconds apart, so under heavy writes the lag can look larger by that much.
+
+The dashboard is `monitoring/grafana/dashboards/opensql-ha-nodes.json`. Edits made in the UI are not saved, so change the JSON file. The ports are opened only on this Mac.
+
 ---
 
 ## Compose files
@@ -137,6 +162,7 @@ When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE
 |---|---|
 | `docker-compose.local.yml` | `local`: PostgreSQL, MinIO, server, worker. Tests use only PostgreSQL and MinIO |
 | `docker-compose.dev.yml` | `dev`: SSH tunnel to the DB cluster, MinIO, server, worker |
+| `docker-compose.monitoring.yml` | Node monitoring: SSH tunnel for Patroni metrics, Prometheus, Grafana |
 
 ---
 
@@ -201,6 +227,8 @@ Copy `.env.dev.example` to `.env`. The gradle `dev` profile and the dev stack re
 | `CORS_ALLOWED_ORIGINS` | O | Origins allowed by CORS. Pass several separated by commas |
 | `COHERE_API_KEY` | X | Search result reranking. Without it, RRF order is used |
 | `SERVER_HOST_PORT` · `MINIO_HOST_PORT` · `MINIO_CONSOLE_HOST_PORT` | X | Dev stack host ports (8080 / 9010 / 9011) |
+| `GRAFANA_HOST_PORT` · `PROMETHEUS_HOST_PORT` | X | Monitoring stack host ports (3030 / 9090) |
+| `GRAFANA_ADMIN_PASSWORD` | X | Grafana `admin` password (default `admin`). Viewing needs no login |
 | `WORKER_IMAGE` | X | Worker image (default `ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest`) |
 
 `dev` in the Required column means it's needed only when running with gradle. In the dev stack, compose sets the in-container values.

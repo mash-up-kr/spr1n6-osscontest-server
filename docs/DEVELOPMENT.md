@@ -129,6 +129,31 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 VPN으로 VPC에 붙어 있으면 `.env`에서 `COMPOSE_PROFILES`를 비우고 `COMPOSE_DB_HOST=10.40.1.100`으로 둔다. `db-tunnel` 없이 VIP로 바로 붙는다.
 
+### 노드 모니터링 대시보드
+
+DB 노드 3대의 역할(Leader/Replica)·상태·복제 지연을 Grafana로 본다. `patronictl list`와 같은 내용을 2초마다 갱신한다. dev 스택과 따로 띄운다.
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+# http://localhost:3030  첫 화면이 "OpenSQL HA 노드 현황" 대시보드다
+docker compose -f docker-compose.monitoring.yml down
+```
+
+자료는 각 노드의 Patroni가 내보내는 지표(`8008/metrics`)다. 8008은 클러스터 안에서만 열려 있어 `patroni-tunnel` 컨테이너가 db-01을 거치는 SSH 터널로 가져온다. `.env`의 `SSH_*`를 dev 스택과 같이 쓰고, DB 서버에는 아무것도 설치하지 않는다.
+
+| 화면 | 내용 |
+|---|---|
+| 맨 위 숫자 | Leader 노드, streaming Replica 수, 응답 노드 수, TL, 최대 Lag |
+| 노드 현황 | 노드마다 멤버·IP·역할·상태·TL·Lag·Postgres 시작 시각 |
+| 노드별 상태 변화 | 노드마다 상태가 바뀐 시점을 색 띠로 보여 준다 |
+| Replica Lag | Replica마다 Leader보다 뒤처진 바이트 수 |
+
+노드 3대는 고정 목록이다. Patroni를 멈추거나 서버가 꺼진 노드는 목록에서 빠지지 않고 빨간 `응답 없음`으로 남는다. `patronictl list`에는 `stopped`로 나오다가 30초쯤 뒤 줄이 사라진다. 역할·상태·Lag를 계산하는 규칙은 `monitoring/prometheus/rules.yml`에 있다.
+
+Lag는 Leader가 쓴 WAL 위치에서 Replica가 받은 WAL 위치를 뺀 값이다. 노드마다 수집 시각이 최대 2초 어긋나므로 쓰기가 많을 때는 그만큼 크게 보일 수 있다.
+
+대시보드는 `monitoring/grafana/dashboards/opensql-ha-nodes.json`이다. 화면에서 고친 내용은 저장되지 않으므로 JSON 파일을 고친다. 포트는 이 Mac에만 열린다.
+
 ---
 
 ## 컴포즈 파일
@@ -137,6 +162,7 @@ VPN으로 VPC에 붙어 있으면 `.env`에서 `COMPOSE_PROFILES`를 비우고 `
 |---|---|
 | `docker-compose.local.yml` | `local`: PostgreSQL·MinIO·server·worker. 테스트는 PostgreSQL·MinIO만 쓴다 |
 | `docker-compose.dev.yml` | `dev`: DB 클러스터로 가는 SSH 터널·MinIO·server·worker |
+| `docker-compose.monitoring.yml` | 노드 모니터링: Patroni 지표용 SSH 터널·Prometheus·Grafana |
 
 ---
 
@@ -201,6 +227,8 @@ ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 Post
 | `CORS_ALLOWED_ORIGINS` | O | CORS를 허용할 origin. 쉼표로 여러 개를 넘긴다 |
 | `COHERE_API_KEY` | X | 검색 결과 재정렬. 없으면 RRF 순서 |
 | `SERVER_HOST_PORT` · `MINIO_HOST_PORT` · `MINIO_CONSOLE_HOST_PORT` | X | dev 스택의 호스트 포트 (8080 / 9010 / 9011) |
+| `GRAFANA_HOST_PORT` · `PROMETHEUS_HOST_PORT` | X | 모니터링 스택의 호스트 포트 (3030 / 9090) |
+| `GRAFANA_ADMIN_PASSWORD` | X | Grafana `admin` 비밀번호 (기본 `admin`). 보기는 로그인 없이 된다 |
 | `WORKER_IMAGE` | X | 워커 이미지 (기본 `ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest`) |
 
 필수 칸의 `dev`는 gradle로 띄울 때만 필요하다는 뜻이다. dev 스택은 컨테이너 안의 값을 컴포즈가 정한다.
