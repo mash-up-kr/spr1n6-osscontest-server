@@ -8,9 +8,6 @@ import com.osscontest.server.document.domain.Permission
 import com.osscontest.server.document.domain.PrincipalType
 import com.osscontest.server.indexing.domain.IndexingJob
 import com.osscontest.server.indexing.domain.JobType
-import com.osscontest.server.outbox.domain.OutboxEvent
-import com.osscontest.server.outbox.domain.OutboxEventType
-import com.osscontest.server.outbox.domain.OutboxStatus
 import com.osscontest.server.tenant.domain.Tenant
 import com.osscontest.server.user.domain.AppUser
 import jakarta.persistence.EntityManager
@@ -249,62 +246,6 @@ class EntityMappingTest {
         assertNotNull(reloaded.updatedAt)
         assertEquals(JobType.INDEX, reloaded.jobType)
         assertNotNull(reloaded.enqueueSeq, "enqueue_seq 는 DB 가 발급한다")
-    }
-
-    @Test
-    fun `재인덱싱 이벤트를 애플리케이션이 직접 넣는다`() {
-        val tenant = Tenant(name = "mashup").also { em.persist(it) }
-        val document = Document(
-            tenant = tenant,
-            ownerPrincipalId = "user-1",
-            title = "설계 문서",
-        ).also { em.persist(it) }
-
-        val version = DocumentVersion(
-            document = document,
-            versionNo = 1,
-            sourceObjectKey = "tenants/1/documents/1/versions/1/a.pdf",
-            originalFilename = "사업계획서_v1.pdf",
-            mimeType = "application/pdf",
-            fileSize = 20480,
-            contentHash = "sha256:abc",
-            createdByPrincipalId = "user-1",
-        ).also { em.persist(it) }
-
-        // 원본 이벤트를 트리거에 기대지 않고 직접 넣는다. outbox 트리거는 다음 PR에서 지운다.
-        val origin = OutboxEvent(
-            id = UUID.randomUUID(),
-            tenantId = tenant.id!!,
-            documentId = document.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-            payload = mapOf("tenantId" to tenant.id, "versionNo" to version.versionNo),
-        ).also {
-            it.documentVersionId = version.id
-            em.persist(it)
-        }
-
-        em.flush()
-
-        val retry = OutboxEvent(
-            id = UUID.randomUUID(),
-            tenantId = tenant.id!!,
-            documentId = document.id!!,
-            eventType = OutboxEventType.INDEXING_REQUESTED,
-            payload = mapOf("tenantId" to tenant.id, "versionNo" to version.versionNo),
-        ).also {
-            it.documentVersionId = version.id
-            it.retryOfEventId = origin.id
-            em.persist(it)
-        }
-
-        em.flush()
-        em.clear()
-
-        val reloaded = em.find(OutboxEvent::class.java, retry.id)
-        assertEquals(origin.id, reloaded.retryOfEventId)
-        assertEquals(OutboxStatus.PENDING, reloaded.status)
-        assertEquals(1, reloaded.eventSchemaVersion)
-        assertNotNull(reloaded.nextAttemptAt)
     }
 
     private fun String.toUtf8Hex(): String =

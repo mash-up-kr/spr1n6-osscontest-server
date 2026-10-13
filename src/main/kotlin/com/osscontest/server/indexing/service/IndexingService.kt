@@ -91,7 +91,7 @@ class IndexingService(
         documentVersionRepository.findByDocumentIdAndVersionNo(document.id!!, versionNo)
             ?: throw BusinessException(ErrorCode.DOCUMENT_VERSION_NOT_FOUND)
 
-    /** 트리거 도입 전에 올라와 outbox 이벤트만 남은 버전은 Job 이 없어 PENDING 으로 본다. */
+    /** Job 등록 트리거 도입 전에 올라온 버전은 Job 이 없어 PENDING 으로 본다. */
     private fun state(version: DocumentVersion): IndexingState =
         latestJob(version.id!!)?.toIndexingState() ?: IndexingState(status = IndexingStatus.PENDING)
 
