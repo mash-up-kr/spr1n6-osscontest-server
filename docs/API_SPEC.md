@@ -411,13 +411,18 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
   "chunkCount": null,
   "startedAt": "2026-08-15T04:12:11Z",
   "completedAt": null,
-  "lastErrorMessage": null
+  "lastErrorMessage": null,
+  "nextRetryAt": null,
+  "lastErrorCode": null
 }
 ```
 
 해당 버전의 가장 최근 `outbox_event`에 대응하는 `indexing_job` 행이다. 워커가 아직 그 이벤트를
 소비하지 않았으면 `status`는 `PENDING`이다.
 `phase`는 워커가 기록한 현재 처리 단계이며, 잡 생성 전이거나 단계가 기록되지 않았으면 `null`이다.
+`nextRetryAt`은 `RETRY_WAIT`일 때 워커가 다시 시도할 시각이며, 그 밖의 상태에서는 `null`이다.
+`lastErrorCode`는 워커가 마지막 실패에 남긴 오류 코드다. `lastErrorMessage`와 함께 채워지며, 두 값 모두
+다음 시도가 진행 중이거나 완료된 뒤에도 지난 실패의 값이 남는다.
 `COMPLETED` 와 `FAILED` 가 종료 상태이며, 클라이언트는 여기서 폴링을 멈춘다.
 
 `404`

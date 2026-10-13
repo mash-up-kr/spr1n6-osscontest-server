@@ -13,6 +13,9 @@ data class IndexingStatusResponse(
     val startedAt: Instant?,
     val completedAt: Instant?,
     val lastErrorMessage: String?,
+    /** RETRY_WAIT 일 때만 값이 있다. */
+    val nextRetryAt: Instant?,
+    val lastErrorCode: String?,
 )
 
 data class IndexingRetryResponse(

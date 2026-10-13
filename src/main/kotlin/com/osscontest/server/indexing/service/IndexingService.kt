@@ -56,6 +56,8 @@ class IndexingService(
             startedAt = indexing.startedAt,
             completedAt = indexing.completedAt,
             lastErrorMessage = indexing.lastErrorMessage,
+            nextRetryAt = indexing.nextRetryAt,
+            lastErrorCode = indexing.lastErrorCode,
         )
     }
 
@@ -179,6 +181,9 @@ class IndexingService(
             startedAt = startedAt,
             completedAt = completedAt,
             lastErrorMessage = lastErrorMessage,
+            // next_retry_at 은 Worker 소유 컬럼이고 RETRY_WAIT 에서만 의미가 있다. 다른 상태에 값이 남아 있어도 노출하지 않는다.
+            nextRetryAt = nextRetryAt.takeIf { status == IndexingStatus.RETRY_WAIT },
+            lastErrorCode = lastErrorCode,
         )
 
     private fun OutboxEvent.toPendingIndexingState(): IndexingState =
@@ -198,5 +203,7 @@ class IndexingService(
         val startedAt: Instant? = null,
         val completedAt: Instant? = null,
         val lastErrorMessage: String? = null,
+        val nextRetryAt: Instant? = null,
+        val lastErrorCode: String? = null,
     )
 }
