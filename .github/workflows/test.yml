@@ -1,5 +1,5 @@
 # 테스트는 local 프로파일로 PostgreSQL(pgvector, pgcrypto)과 MinIO 에 붙는다.
-# docker-compose.local.yml 의 postgres·minio·minio-init 과 같은 환경을 만든 뒤 ./gradlew test 를 돌린다.
+# docker-compose.local.yml 의 postgres·minio 와 같은 환경을 만든 뒤 ./gradlew test 를 돌린다.
 name: test
 
 on:
@@ -33,8 +33,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       minio:
-        # 공식 minio/minio 이미지는 더 이상 받을 수 없어 docker-compose.local.yml 과 같은 Bitnami 레거시 이미지를 쓴다.
-        # MINIO_DEFAULT_BUCKETS 로 기동하며 버킷을 만들어 minio-init 이 따로 필요 없다.
+        # docker-compose.local.yml 과 같은 이미지다.
         image: bitnamilegacy/minio:2025.7.23
         env:
           MINIO_ROOT_USER: aidocs

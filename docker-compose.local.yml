@@ -36,7 +36,6 @@ services:
 
   minio:
     # 공식 minio/minio·minio/mc 이미지는 더 이상 받을 수 없어 Bitnami 레거시 이미지를 쓴다.
-    # 갱신되지 않는 이미지라 로컬·테스트 용도로만 쓴다.
     image: bitnamilegacy/minio:2025.7.23
     container_name: aidocs-minio
     restart: unless-stopped
