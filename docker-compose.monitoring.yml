@@ -1,0 +1,90 @@
+# 노드 모니터링 스택. DB 노드 3대의 역할·상태·복제 지연을 Grafana 대시보드로 보여 준다.
+#
+#   docker compose -f docker-compose.monitoring.yml up -d
+#   http://localhost:3030   대시보드 "OpenSQL HA 노드 현황"이 첫 화면이다
+#
+# 자료는 각 노드의 Patroni 가 이미 내보내는 지표(8008/metrics)다. DB 서버에는 아무것도 설치하지 않는다.
+# 8008 은 클러스터 안에서만 열려 있어 db-01 을 거치는 SSH 터널로 가져온다. .env 의 SSH_* 를 dev 스택과 같이 쓴다.
+# dev 스택과 따로 띄우고 따로 내린다.
+
+name: aidocs-monitoring
+
+services:
+  patroni-tunnel:
+    image: alpine:3.20
+    container_name: aidocs-monitoring-patroni-tunnel
+    restart: unless-stopped
+    environment:
+      SSH_HOST: ${SSH_HOST:?.env 에 SSH_HOST 가 필요합니다}
+      SSH_PORT: ${SSH_PORT:-22}
+      SSH_USER: ${SSH_USER:?.env 에 SSH_USER 가 필요합니다}
+      TZ: Asia/Seoul
+    volumes:
+      - ${SSH_KEY_PATH:?.env 에 SSH_KEY_PATH 가 필요합니다}:/key:ro
+    # 노드마다 포트 하나씩 연다. 8001=db-01, 8002=db-02, 8003=db-03 의 Patroni REST 다.
+    # 노드 하나가 멈춰도 터널은 살아 있고, 그 포트로 온 요청만 실패한다.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-client >/dev/null &&
+        cp /key /tmp/id && chmod 600 /tmp/id &&
+        exec ssh -N \
+          -i /tmp/id \
+          -p "$${SSH_PORT}" \
+          -o StrictHostKeyChecking=accept-new \
+          -o ExitOnForwardFailure=yes \
+          -o ServerAliveInterval=30 \
+          -o ServerAliveCountMax=3 \
+          -L 0.0.0.0:8001:10.40.1.11:8008 \
+          -L 0.0.0.0:8002:10.40.1.12:8008 \
+          -L 0.0.0.0:8003:10.40.1.13:8008 \
+          "$${SSH_USER}@$${SSH_HOST}"
+    healthcheck:
+      test: [ "CMD-SHELL", "netstat -ltn | grep -q ':8003'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    container_name: aidocs-monitoring-prometheus
+    restart: unless-stopped
+    depends_on:
+      patroni-tunnel: { condition: service_healthy }
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=14d
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - aidocs-monitoring-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:13.1.1
+    container_name: aidocs-monitoring-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      # 로그인 없이 보기만 할 수 있게 연다. 포트는 이 Mac 에만 열린다.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/opensql-ha-nodes.json
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 2s
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      TZ: Asia/Seoul
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - aidocs-monitoring-grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3030}:3000"
+
+volumes:
+  aidocs-monitoring-prometheus-data:
+  aidocs-monitoring-grafana-data:

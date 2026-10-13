@@ -1,0 +1,22 @@
+# 노드 3대의 Patroni 지표를 2초마다 모은다. 주소는 patroni-tunnel 컨테이너가 연 포트다.
+# 노드를 고정 목록으로 두므로 Patroni 가 멈춘 노드도 목록에서 빠지지 않고 up=0 으로 남는다.
+
+global:
+  scrape_interval: 2s
+  scrape_timeout: 1500ms
+  evaluation_interval: 2s
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+scrape_configs:
+  - job_name: patroni
+    # Patroni 는 버전 없는 text/plain 으로 응답한다. Prometheus 3 은 형식을 정해 주지 않으면 수집을 거부한다.
+    fallback_scrape_protocol: PrometheusText0.0.4
+    static_configs:
+      - targets: [ "patroni-tunnel:8001" ]
+        labels: { node: db-01, member: postgresql1, host: 10.40.1.11 }
+      - targets: [ "patroni-tunnel:8002" ]
+        labels: { node: db-02, member: postgresql2, host: 10.40.1.12 }
+      - targets: [ "patroni-tunnel:8003" ]
+        labels: { node: db-03, member: postgresql3, host: 10.40.1.13 }
