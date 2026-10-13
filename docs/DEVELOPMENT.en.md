@@ -86,6 +86,8 @@ The default local port is `15432`. The `local` profile's Docker PostgreSQL uses 
 
 The `aidocs_session` pool allows at most 14 DB connections per OpenProxy. One server holds 10 of them, so effectively only one server across the team can be connected to the cluster at a time. Don't run a gradle `dev` app and the dev stack's server together either. Connections over the limit wait 10 seconds and then fail with `AllServersDown` (`58000`). Shut the app down when you're not using it.
 
+Search uses the separate `aidocs_ro` pool (Replica). Its limit is 8, and one server opens up to 8.
+
 To see who is connected:
 
 ```sql
@@ -148,6 +150,7 @@ When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE
 | Connection path | Direct | SSH tunnel → OpenProxy VIP |
 | Connection settings | `application-local.yml` | `.env` |
 | Connection init | None | `SET SERVER ROLE TO 'default'` |
+| Search connection | Shares the main connection | Separate `aidocs_ro` pool (Replica, up to 8) |
 | Encryption algorithm | AES-256 | ARIA-256 |
 | CORS allow list | `application-local.yml` | `.env` |
 | SQL logging | ON | OFF |
@@ -176,6 +179,7 @@ Copy `.env.dev.example` to `.env`. The gradle `dev` profile and the dev stack re
 | `DB_HOST` | dev | DB host. `127.0.0.1` because it goes through the tunnel |
 | `DB_PORT` | dev | Port. Same as `TUNNEL_LOCAL_PORT` (`15432`) |
 | `DB_NAME` | dev | OpenProxy pool name `aidocs_session` |
+| `DB_SEARCH_NAME` | X | OpenProxy pool name for the search connection (default `aidocs_ro`) |
 | `DB_USERNAME` | O | Account `aidocs` |
 | `DB_PASSWORD` | O | Password |
 | `DB_ENCRYPTION_KEY` | O | High-entropy Base64 key set as `app.encryption_key` in every transaction |

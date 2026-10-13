@@ -1,6 +1,7 @@
 package com.osscontest.server.search.infrastructure
 
 import com.osscontest.server.search.domain.CorpusStats
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -13,7 +14,7 @@ import java.time.Instant
  */
 @Component
 class CorpusStatsCache(
-    private val jdbcTemplate: NamedParameterJdbcTemplate,
+    @Qualifier("searchJdbcTemplate") private val jdbcTemplate: NamedParameterJdbcTemplate,
 ) {
     @Volatile
     private var cached: CorpusStats = CorpusStats.EMPTY
