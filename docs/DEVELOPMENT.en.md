@@ -131,7 +131,7 @@ When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE
 
 ### Node monitoring dashboard
 
-Shows the role (Leader/Replica), state and replication lag of the three DB nodes in Grafana. It carries the same information as `patronictl list` and refreshes every 2 seconds. It runs separately from the dev stack.
+Shows the role (Leader/Replica), state and replication lag of the three DB nodes, plus OpenProxy, VIP and etcd status, in Grafana. It refreshes every 2 seconds, and the DB node part carries the same information as `patronictl list`. It runs separately from the dev stack.
 
 ```bash
 docker compose -f docker-compose.monitoring.yml up -d
@@ -139,16 +139,29 @@ docker compose -f docker-compose.monitoring.yml up -d
 docker compose -f docker-compose.monitoring.yml down
 ```
 
-The data comes from the metrics Patroni exposes on each node (`8008/metrics`). Port 8008 is open only inside the cluster, so the `patroni-tunnel` container reaches it through an SSH tunnel via db-01. It uses the same `SSH_*` values in `.env` as the dev stack and installs nothing on the DB servers.
+Cluster ports are closed from outside, so the `cluster-tunnel` container reaches them through an SSH tunnel via db-01. It uses the same `SSH_*` values in `.env` as the dev stack. The tunnel ports are listed in the header comment of `monitoring/cluster-tunnel/entrypoint.sh`.
 
-| Panel | Content |
+| Data | Source |
 |---|---|
-| Top numbers | Leader node, streaming replica count, responding node count, TL, max lag |
-| 노드 현황 (node status) | Member, IP, role, state, TL, lag and Postgres start time per node |
-| 노드별 상태 변화 (state changes) | Colored bands showing when each node's state changed |
-| Replica Lag | Bytes each replica is behind the leader |
+| DB node role, state, lag | Patroni metrics on each node (`8008/metrics`) |
+| etcd leader, health | etcd metrics on each node (`2379/metrics`) |
+| OpenProxy connections per pool | OpenProxy metrics on db-02 and db-03 (`9930/metrics`). The port is closed even between nodes, so it is fetched over SSH into each server |
+| OpenProxy response, VIP location | Not exposed as metrics, so `cluster-tunnel` checks them itself (`node_probe.py`). It sends a PostgreSQL request to 6432 and looks for the VIP in `ip addr` on db-02 and db-03 |
 
-The three nodes are a fixed list. A node whose Patroni is stopped or whose server is down stays on the dashboard as a red `응답 없음` (no response). `patronictl list` shows it as `stopped` and drops the row about 30 seconds later. The rules that compute role, state and lag are in `monitoring/prometheus/rules.yml`.
+OpenProxy metrics appear only after adding the two lines below to `[general]` in the server's `openproxy.toml` and restarting OpenProxy. Without them, only the per-pool connection counts stay empty.
+
+```toml
+enable_prometheus_exporter = true
+prometheus_exporter_port = 9930
+```
+
+| Section | Content |
+|---|---|
+| DB 노드 · Patroni | Leader node, streaming replica count, responding node count, TL, max lag. Member, IP, role, state, lag, Postgres start time and state changes per node |
+| OpenProxy · VIP | VIP location and response, OpenProxy response, client and DB server connections per pool, waiting clients. Changes in VIP location and response |
+| etcd | Health, role (leader/follower), leader change count, DB size and role changes per node |
+
+The three nodes are a fixed list. A node whose Patroni is stopped or whose server is down stays on the dashboard as a red `응답 없음` (no response). `patronictl list` shows it as `stopped` and drops the row about 30 seconds later. If all three nodes show `응답 없음` at once, check the tunnel before the cluster (`docker logs aidocs-monitoring-cluster-tunnel`). The rules that compute codes such as role and state are in `monitoring/prometheus/rules.yml`.
 
 Lag is the leader's written WAL position minus the replica's received WAL position. Nodes are scraped up to 2 seconds apart, so under heavy writes the lag can look larger by that much.
 
@@ -162,7 +175,7 @@ The dashboard is `monitoring/grafana/dashboards/opensql-ha-nodes.json`. Edits ma
 |---|---|
 | `docker-compose.local.yml` | `local`: PostgreSQL, MinIO, server, worker. Tests use only PostgreSQL and MinIO |
 | `docker-compose.dev.yml` | `dev`: SSH tunnel to the DB cluster, MinIO, server, worker |
-| `docker-compose.monitoring.yml` | Node monitoring: SSH tunnel for Patroni metrics, Prometheus, Grafana |
+| `docker-compose.monitoring.yml` | Node monitoring: SSH tunnel to the cluster, Prometheus, Grafana |
 
 ---
 
