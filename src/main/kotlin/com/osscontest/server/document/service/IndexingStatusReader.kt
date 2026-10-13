@@ -13,6 +13,6 @@ interface IndexingStatusReader {
 
     fun statusOf(version: DocumentVersion): IndexingStatus
 
-    /** 버전 수와 무관하게 이벤트와 잡을 한 번씩만 조회한다. */
+    /** 버전 수와 무관하게 Job 을 한 번만 조회한다. Job 이 없는 버전은 결과에 없다. */
     fun statusByVersionId(versionIds: Collection<Long>): Map<Long?, IndexingStatus>
 }

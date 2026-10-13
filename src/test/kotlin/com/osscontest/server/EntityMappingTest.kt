@@ -7,6 +7,7 @@ import com.osscontest.server.document.domain.IndexingStatus
 import com.osscontest.server.document.domain.Permission
 import com.osscontest.server.document.domain.PrincipalType
 import com.osscontest.server.indexing.domain.IndexingJob
+import com.osscontest.server.indexing.domain.JobType
 import com.osscontest.server.outbox.domain.OutboxEvent
 import com.osscontest.server.outbox.domain.OutboxEventType
 import com.osscontest.server.outbox.domain.OutboxStatus
@@ -130,7 +131,7 @@ class EntityMappingTest {
     }
 
     @Test
-    fun `버전을 저장하면 트리거가 Outbox 행을 만든다`() {
+    fun `버전을 저장하면 트리거가 INDEX Job 을 등록한다`() {
         val tenant = Tenant(name = "mashup").also { em.persist(it) }
         val document = Document(
             tenant = tenant,
@@ -152,21 +153,52 @@ class EntityMappingTest {
         em.flush()
         em.clear()
 
-        val events = em.createQuery(
-            "SELECT e FROM OutboxEvent e WHERE e.documentVersionId = :id",
-            OutboxEvent::class.java,
+        val jobs = em.createQuery(
+            "SELECT j FROM IndexingJob j WHERE j.documentVersionId = :id",
+            IndexingJob::class.java,
         ).setParameter("id", version.id).resultList
 
-        assertEquals(1, events.size, "트리거가 Outbox 행을 만들어야 한다")
+        assertEquals(1, jobs.size, "트리거가 Job 을 하나 등록해야 한다")
 
-        val event = events.first()
-        assertEquals(OutboxEventType.INDEXING_REQUESTED, event.eventType)
-        assertEquals(OutboxStatus.PENDING, event.status)
-        assertEquals(document.id, event.documentId)
-        assertEquals(tenant.id, event.tenantId)
-        assertNull(event.retryOfEventId)
-        assertEquals(1, (event.payload["versionNo"] as Number).toInt())
-        assertEquals("application/pdf", event.payload["mimeType"])
+        val job = jobs.first()
+        assertEquals(JobType.INDEX, job.jobType)
+        assertEquals(IndexingStatus.PENDING, job.status)
+        assertEquals(document.id, job.documentId)
+        assertEquals(0, job.attemptCount)
+        assertNotNull(job.enqueueSeq)
+
+        val epoch = em.createNativeQuery("SELECT execution_epoch FROM indexing_job WHERE id = :id")
+            .setParameter("id", job.id)
+            .singleResult as Number
+        assertEquals(0L, epoch.toLong())
+    }
+
+    @Test
+    fun `문서를 삭제하면 트리거가 DELETE Job 을 한 번만 등록한다`() {
+        val tenant = Tenant(name = "mashup").also { em.persist(it) }
+        val document = Document(
+            tenant = tenant,
+            ownerPrincipalId = "user-1",
+            title = "설계 문서",
+        ).also { em.persist(it) }
+        em.flush()
+
+        document.deletedAt = Instant.now()
+        em.flush()
+        // 이미 삭제된 문서를 다시 갱신해도 Job 이 늘지 않아야 한다
+        document.deletedAt = Instant.now().plusSeconds(1)
+        em.flush()
+        em.clear()
+
+        val jobs = em.createQuery(
+            "SELECT j FROM IndexingJob j WHERE j.documentId = :id",
+            IndexingJob::class.java,
+        ).setParameter("id", document.id).resultList
+
+        assertEquals(1, jobs.size)
+        assertEquals(JobType.DELETE, jobs.first().jobType)
+        assertEquals(IndexingStatus.PENDING, jobs.first().status)
+        assertNull(jobs.first().documentVersionId)
     }
 
     @Test
@@ -215,6 +247,8 @@ class EntityMappingTest {
         assertEquals("임베딩 응답이 없습니다", reloaded.lastErrorMessage)
         assertNotNull(reloaded.completedAt)
         assertNotNull(reloaded.updatedAt)
+        assertEquals(JobType.INDEX, reloaded.jobType)
+        assertNotNull(reloaded.enqueueSeq, "enqueue_seq 는 DB 가 발급한다")
     }
 
     @Test
@@ -237,12 +271,19 @@ class EntityMappingTest {
             createdByPrincipalId = "user-1",
         ).also { em.persist(it) }
 
-        em.flush()
+        // 원본 이벤트를 트리거에 기대지 않고 직접 넣는다. outbox 트리거는 다음 PR에서 지운다.
+        val origin = OutboxEvent(
+            id = UUID.randomUUID(),
+            tenantId = tenant.id!!,
+            documentId = document.id!!,
+            eventType = OutboxEventType.INDEXING_REQUESTED,
+            payload = mapOf("tenantId" to tenant.id, "versionNo" to version.versionNo),
+        ).also {
+            it.documentVersionId = version.id
+            em.persist(it)
+        }
 
-        val origin = em.createQuery(
-            "SELECT e FROM OutboxEvent e WHERE e.documentVersionId = :id",
-            OutboxEvent::class.java,
-        ).setParameter("id", version.id).singleResult
+        em.flush()
 
         val retry = OutboxEvent(
             id = UUID.randomUUID(),
