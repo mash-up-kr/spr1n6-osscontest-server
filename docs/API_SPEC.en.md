@@ -417,7 +417,9 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
   "chunkCount": null,
   "startedAt": "2026-08-15T04:12:11Z",
   "completedAt": null,
-  "lastErrorMessage": null
+  "lastErrorMessage": null,
+  "nextRetryAt": null,
+  "lastErrorCode": null
 }
 ```
 
@@ -425,6 +427,10 @@ This is the `indexing_job` row corresponding to the version's most recent `outbo
 worker has not yet consumed that event, `status` is `PENDING`.
 `phase` is the current processing stage recorded by the worker, and is `null` if the job hasn't been
 created yet or the stage hasn't been recorded.
+`nextRetryAt` is when the worker will retry while the status is `RETRY_WAIT`, and is `null` in any
+other state. `lastErrorCode` is the error code the worker recorded for the last failure. It is filled
+in together with `lastErrorMessage`, and both keep the previous failure's value while a later attempt
+is in progress or after it completes.
 `COMPLETED` and `FAILED` are terminal states, and the client stops polling once it reaches one of
 them.
 

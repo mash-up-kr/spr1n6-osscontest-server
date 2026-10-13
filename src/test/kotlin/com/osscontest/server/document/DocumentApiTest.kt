@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.put
 import org.springframework.transaction.annotation.Transactional
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -438,6 +439,59 @@ class DocumentApiTest {
     }
 
     @Test
+    fun `재시도 대기 중이면 다음 재시도 시각과 오류 코드를 보여 준다`() {
+        val documentId = createDocument("재시도 대기".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        val nextRetryAt = Instant.parse("2026-10-14T03:00:00Z")
+
+        createIndexingJob(
+            sourceEventId = latestOutboxId(),
+            documentId = documentId,
+            versionId = versionId,
+            status = "RETRY_WAIT",
+            attemptCount = 2,
+            lastErrorMessage = "임베딩 응답이 없습니다",
+            lastErrorCode = "EMBEDDING_TIMEOUT",
+            nextRetryAt = nextRetryAt,
+        )
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("RETRY_WAIT") }
+            jsonPath("$.nextRetryAt") { value("2026-10-14T03:00:00Z") }
+            jsonPath("$.lastErrorCode") { value("EMBEDDING_TIMEOUT") }
+        }
+    }
+
+    @Test
+    fun `재시도 대기가 아니면 남아 있는 재시도 시각을 보여 주지 않는다`() {
+        val documentId = createDocument("재시도 시각 잔존".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+
+        createIndexingJob(
+            sourceEventId = latestOutboxId(),
+            documentId = documentId,
+            versionId = versionId,
+            status = "FAILED",
+            attemptCount = 5,
+            lastErrorMessage = "파싱 실패",
+            lastErrorCode = "PARSE_FAILED",
+            nextRetryAt = Instant.parse("2026-10-14T03:00:00Z"),
+        )
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("FAILED") }
+            jsonPath("$.nextRetryAt") { value(null) }
+            jsonPath("$.lastErrorCode") { value("PARSE_FAILED") }
+        }
+    }
+
+    @Test
     fun `같은 시각의 이벤트가 둘이어도 목록과 상세의 인덱싱 상태가 같다`() {
         val documentId = createDocument("동시 이벤트".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
@@ -720,6 +774,8 @@ class DocumentApiTest {
         phase: String? = null,
         attemptCount: Int,
         lastErrorMessage: String? = null,
+        lastErrorCode: String? = null,
+        nextRetryAt: Instant? = null,
     ) {
         // ck_indexing_job_lease: PROCESSING 만 worker_id·lease_until 을 가진다.
         val leased = status == "PROCESSING"
@@ -733,6 +789,8 @@ class DocumentApiTest {
                 phase,
                 attempt_count,
                 last_error_message,
+                last_error_code,
+                next_retry_at,
                 worker_id,
                 lease_until,
                 created_at,
@@ -746,6 +804,8 @@ class DocumentApiTest {
                 :phase,
                 :attemptCount,
                 :lastErrorMessage,
+                :lastErrorCode,
+                :nextRetryAt,
                 :workerId,
                 CASE WHEN :leased THEN now() + interval '5 minutes' END,
                 now(),
@@ -760,6 +820,8 @@ class DocumentApiTest {
             .setParameter("phase", phase)
             .setParameter("attemptCount", attemptCount)
             .setParameter("lastErrorMessage", lastErrorMessage)
+            .setParameter("lastErrorCode", lastErrorCode)
+            .setParameter("nextRetryAt", nextRetryAt)
             .setParameter("workerId", if (leased) "test-worker" else null)
             .setParameter("leased", leased)
             .executeUpdate()
