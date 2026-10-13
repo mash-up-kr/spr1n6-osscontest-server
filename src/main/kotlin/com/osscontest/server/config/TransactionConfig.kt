@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.transaction.autoconfigure.TransactionManagerCustomizers
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import org.springframework.orm.jpa.JpaDialect
 import org.springframework.orm.jpa.JpaTransactionManager
 import org.springframework.transaction.PlatformTransactionManager
@@ -15,6 +16,7 @@ import org.springframework.transaction.PlatformTransactionManager
 class TransactionConfig {
 
     @Bean
+    @Primary
     fun transactionManager(
         entityManagerFactory: EntityManagerFactory,
         transactionManagerCustomizers: ObjectProvider<TransactionManagerCustomizers>,

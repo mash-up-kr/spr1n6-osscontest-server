@@ -33,3 +33,20 @@ storage:
   access-key: ${STORAGE_ACCESS_KEY}
   secret-key: ${STORAGE_SECRET_KEY}
   bucket: ${STORAGE_BUCKET}
+
+# 검색은 OpenProxy aidocs_ro 풀(Replica)로 읽는다. 기본 연결과 같은 VIP 에 풀 이름만 다르다.
+search:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_SEARCH_NAME:aidocs_ro}?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true&connectTimeout=5&socketTimeout=30
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      pool-name: search
+      # OpenProxy aidocs_ro 풀 크기(8)를 넘지 않게 잡는다.
+      maximum-pool-size: 8
+      connection-timeout: 5000
+      max-lifetime: 1800000
+      keepalive-time: 30000
+      exception-override-class-name: com.osscontest.server.config.OpenProxyExceptionOverride
+      connection-init-sql: "SET SERVER ROLE TO 'default'"
+      initialization-fail-timeout: -1
