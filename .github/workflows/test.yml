@@ -32,6 +32,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      minio:
+        # 공식 minio/minio 이미지는 더 이상 받을 수 없어 docker-compose.local.yml 과 같은 Bitnami 레거시 이미지를 쓴다.
+        # MINIO_DEFAULT_BUCKETS 로 기동하며 버킷을 만들어 minio-init 이 따로 필요 없다.
+        image: bitnamilegacy/minio:2025.7.23
+        env:
+          MINIO_ROOT_USER: aidocs
+          MINIO_ROOT_PASSWORD: aidocs1234
+          MINIO_DEFAULT_BUCKETS: aidocs-documents
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -41,19 +56,6 @@ jobs:
         env:
           PGPASSWORD: aidocs
         run: psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 -f scripts/local-db/00-extensions.sql
-
-      # 서비스 컨테이너는 command 를 받지 못해 MinIO 는 직접 띄운다.
-      - name: MinIO 기동과 버킷 생성
-        run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=aidocs -e MINIO_ROOT_PASSWORD=aidocs1234 \
-            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
-            sleep 2
-          done
-          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z -c \
-            "mc alias set local http://localhost:9000 aidocs aidocs1234 && mc mb --ignore-existing local/aidocs-documents"
 
       - uses: actions/setup-java@v4
         with:
