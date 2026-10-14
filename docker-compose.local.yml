@@ -91,10 +91,11 @@ services:
       retries: 10
       start_period: 40s
 
-  # 워커는 워커 저장소가 올린 이미지를 받아 쓴다.
+  # 워커는 워커 저장소가 올린 이미지로 두 인스턴스를 띄운다.
   worker:
     image: ${WORKER_IMAGE:-ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest}
-    container_name: aidocs-worker
+    deploy:
+      replicas: 2
     restart: unless-stopped
     depends_on:
       # 스키마는 server 가 기동하며 Flyway 로 만든다.

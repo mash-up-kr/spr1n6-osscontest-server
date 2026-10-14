@@ -26,7 +26,7 @@ docker compose -f docker-compose.local.yml up -d postgres minio minio-init
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-server·worker까지 컨테이너로 띄우려면 서비스 이름 없이 올린다.
+server·worker까지 컨테이너로 띄우려면 서비스 이름 없이 올린다. 워커는 기본 2개가 실행된다.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
@@ -110,11 +110,13 @@ OpenProxy를 거친 접속은 `client_addr`이 OpenProxy 서버 주소로 보여
 
 60초 넘게 걸리는 마이그레이션은 `DB_SOCKET_TIMEOUT=0`을 함께 준다.
 
+만료 indexing Job 회수 마이그레이션은 기존 pg_cron에 프로시저 호출을 등록한다.
+
 적용할 때는 반드시 팀에 공유한다. 기본적으로 [인프라 담당자](https://github.com/mingdodev)가 수행하고, 다른 팀원이 수행해야 한다면 미리 팀에 알린 뒤 진행한다. **한 번 적용된 마이그레이션 파일을 나중에 수정하면 나머지 팀원 전원이 체크섬 불일치로 앱을 띄울 수 없게 된다.**
 
 ### dev 스택
 
-server·worker·MinIO를 컨테이너로 띄우고, DB는 `db-tunnel` 컨테이너가 연 SSH 터널로 클러스터에 붙는다. 호스트에서 `tunnel.sh`를 켤 필요가 없다.
+server·worker·MinIO를 컨테이너로 띄우고, DB는 `db-tunnel` 컨테이너가 연 SSH 터널로 클러스터에 붙는다. 호스트에서 `tunnel.sh`를 켤 필요가 없다. 워커 2개는 서버가 마이그레이션을 마치고 정상 상태가 된 뒤 시작한다.
 
 ```bash
 cp .env.dev.example .env   # 값을 채운다
