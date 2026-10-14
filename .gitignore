@@ -49,3 +49,9 @@ bin/
 ### Claude Code ###
 # 스킬(.claude/skills/)은 팀 공유 대상이라 커밋한다. 개인 권한 설정만 제외한다.
 .claude/settings.local.json
+
+### HA 기능테스트 ###
+# 시험 실행 결과(증빙·로그)는 매번 새로 생긴다. 저장소에 올리지 않는다.
+ha-test/results/
+# 도구를 실행하면 Python 이 __pycache__ 를 만든다.
+ha-test/**/__pycache__/
