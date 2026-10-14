@@ -26,7 +26,7 @@ docker compose -f docker-compose.local.yml up -d postgres minio minio-init
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-To run server and worker as containers too, bring it up without service names.
+To run server and worker as containers too, bring it up without service names. Two worker instances run by default.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
@@ -110,11 +110,13 @@ Turn it on only when you need to apply migrations:
 
 For migrations that take longer than 60 seconds, also set `DB_SOCKET_TIMEOUT=0`.
 
+The expired indexing Job recovery migrations register a procedure call in the existing pg_cron installation. See the [implementation and validation guide](INDEXING_JOB_RECOVERY.md) for the execution account, database, and 30-second startup/promotion grace period.
+
 Always tell the team before applying. By default the [infrastructure owner](https://github.com/mingdodev) does it. If someone else needs to, announce it to the team first. **If you edit a migration file after it has been applied, everyone else on the team will fail to start the app with a checksum mismatch.**
 
 ### dev stack
 
-Runs server, worker and MinIO as containers. The DB is reached through the SSH tunnel opened by the `db-tunnel` container, so you don't need `tunnel.sh` on the host.
+Runs server, worker and MinIO as containers. The DB is reached through the SSH tunnel opened by the `db-tunnel` container, so you don't need `tunnel.sh` on the host. The two worker instances start once the server has applied migrations and is healthy.
 
 ```bash
 cp .env.dev.example .env   # fill in the values

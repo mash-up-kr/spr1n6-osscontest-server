@@ -130,12 +130,14 @@ services:
       retries: 10
       start_period: 40s
 
-  # 워커는 워커 저장소가 올린 이미지를 받아 쓴다.
+  # 워커는 워커 저장소가 올린 이미지로 두 인스턴스를 띄운다.
   worker:
     image: ${WORKER_IMAGE:-ghcr.io/mash-up-kr/spr1n6-osscontest-worker:latest}
-    container_name: aidocs-dev-worker
+    deploy:
+      replicas: 2
     restart: unless-stopped
     depends_on:
+      server: { condition: service_healthy }
       db-tunnel: { condition: service_healthy, required: false }
       minio: { condition: service_healthy }
     environment:
