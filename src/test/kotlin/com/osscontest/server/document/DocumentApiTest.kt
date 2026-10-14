@@ -364,6 +364,39 @@ class DocumentApiTest {
     }
 
     @Test
+    fun `같은 내용의 이전 버전이 있으면 버전 목록과 상세가 가장 이른 버전 번호를 알려 준다`() {
+        val documentId = createDocument("같은 내용".toByteArray())
+        addVersion(documentId, "같은 내용".toByteArray())
+        addVersion(documentId, "다른 내용".toByteArray())
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].versionNo") { value(3) }
+            jsonPath("$.items[0].duplicateOfVersionNo") { value(null) }
+            jsonPath("$.items[1].versionNo") { value(2) }
+            jsonPath("$.items[1].duplicateOfVersionNo") { value(1) }
+            jsonPath("$.items[2].versionNo") { value(1) }
+            jsonPath("$.items[2].duplicateOfVersionNo") { value(null) }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/2") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.duplicateOfVersionNo") { value(1) }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.duplicateOfVersionNo") { value(null) }
+        }
+    }
+
+    @Test
     fun `버전 목록 limit 이 범위를 벗어나면 400 이다`() {
         val documentId = createDocument("버전".toByteArray())
 
@@ -760,6 +793,15 @@ class DocumentApiTest {
         uploadedKeys += version["source_object_key"] as String
 
         return (version["document_id"] as Number).toLong()
+    }
+
+    private fun addVersion(documentId: Long, content: ByteArray) {
+        mockMvc.multipart("/api/v1/documents/$documentId/versions") {
+            file(MockMultipartFile("file", "a.pdf", "application/pdf", content))
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect { status { isAccepted() } }
+
+        uploadedKeys += latestVersion()["source_object_key"] as String
     }
 
     @Suppress("UNCHECKED_CAST")

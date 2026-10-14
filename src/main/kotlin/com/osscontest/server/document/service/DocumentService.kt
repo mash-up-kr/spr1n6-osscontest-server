@@ -183,7 +183,7 @@ class DocumentService(
             cursorVersionNo = Cursor.decode(request.cursor, VERSION_CURSOR_FIELD),
             pageable = PageRequest.of(0, request.limit + 1),
         )
-        val versionContext = versionSummaryContext(versions)
+        val versionContext = versionSummaryContext(document, versions)
         val items = versions.take(request.limit).map { it.toVersionSummary(document, versionContext) }
         val nextCursor = versions.getOrNull(request.limit)?.let {
             Cursor.encode(VERSION_CURSOR_FIELD, items.last().versionNo)
@@ -203,6 +203,13 @@ class DocumentService(
             mimeType = version.mimeType,
             fileSize = version.fileSize,
             uploadedAt = version.createdAt!!,
+            duplicateOfVersionNo = duplicateOf(
+                versionNo = version.versionNo,
+                earliestVersionNo = documentVersionRepository.findEarliestVersionNoByContentHash(
+                    document.id!!,
+                    version.contentHash,
+                ),
+            ),
             indexing = indexingStatusReader.detailOf(version),
             searchable = document.searchableVersionId == version.id,
             sourceMetadata = version.sourceMetadata,
@@ -448,10 +455,21 @@ class DocumentService(
         )
     }
 
-    private fun versionSummaryContext(versions: List<DocumentVersion>): VersionSummaryContext =
-        VersionSummaryContext(
+    /** 버전 목록 한 페이지에 붙일 인덱싱 상태와 중복 버전을 버전 수와 무관하게 두 번의 조회로 모은다. */
+    private fun versionSummaryContext(document: Document, versions: List<DocumentVersion>): VersionSummaryContext {
+        val contentHashes = versions.map { it.contentHash }.toSet()
+        val earliestVersionNoByContentHash = if (contentHashes.isEmpty()) {
+            emptyMap()
+        } else {
+            documentVersionRepository.findEarliestVersionNosByContentHash(document.id!!, contentHashes)
+                .associate { it.contentHash to it.versionNo }
+        }
+
+        return VersionSummaryContext(
             indexingByVersionId = indexingStatusReader.detailByVersionId(versions),
+            earliestVersionNoByContentHash = earliestVersionNoByContentHash,
         )
+    }
 
     private fun DocumentVersion.toVersionSummary(
         document: Document,
@@ -463,9 +481,14 @@ class DocumentService(
             mimeType = mimeType,
             fileSize = fileSize,
             uploadedAt = createdAt!!,
+            duplicateOfVersionNo = duplicateOf(versionNo, context.earliestVersionNoByContentHash[contentHash]),
             indexing = context.indexingByVersionId.getValue(id),
             searchable = document.searchableVersionId == id,
         )
+
+    /** 같은 해시의 가장 이른 버전이 자기보다 앞서면 그 번호, 자기 자신이면 null. */
+    private fun duplicateOf(versionNo: Long, earliestVersionNo: Long?): Long? =
+        earliestVersionNo?.takeIf { it < versionNo }
 
     private data class SummaryRow(val document: Document, val summary: DocumentSummary)
 
@@ -479,6 +502,7 @@ class DocumentService(
 
     private data class VersionSummaryContext(
         val indexingByVersionId: Map<Long?, IndexingDetail>,
+        val earliestVersionNoByContentHash: Map<String, Long>,
     )
 
     private fun parseIndexingStatus(value: String): IndexingStatus =

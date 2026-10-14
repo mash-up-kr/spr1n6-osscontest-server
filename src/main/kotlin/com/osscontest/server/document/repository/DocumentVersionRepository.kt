@@ -14,6 +14,21 @@ interface DocumentVersionRepository : JpaRepository<DocumentVersion, Long> {
     )
     fun findEarliestVersionNoByContentHash(documentId: Long, contentHash: String): Long?
 
+    /** [findEarliestVersionNoByContentHash] 를 여러 해시에 한 번에 적용한다. */
+    @Query(
+        """
+        SELECT v.contentHash AS contentHash, MIN(v.versionNo) AS versionNo
+        FROM DocumentVersion v
+        WHERE v.document.id = :documentId
+          AND v.contentHash IN :contentHashes
+        GROUP BY v.contentHash
+        """,
+    )
+    fun findEarliestVersionNosByContentHash(
+        documentId: Long,
+        contentHashes: Collection<String>,
+    ): List<EarliestVersionByContentHash>
+
     fun findByDocumentIdAndVersionNo(documentId: Long, versionNo: Long): DocumentVersion?
 
     fun findByDocumentIdInAndVersionNoIn(

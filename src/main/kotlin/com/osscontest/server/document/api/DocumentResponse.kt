@@ -51,6 +51,8 @@ data class DocumentVersionSummary(
     val mimeType: String,
     val fileSize: Long,
     val uploadedAt: Instant,
+    /** 같은 내용을 올린 가장 이른 이전 버전. 없으면 null. 업로드 응답과 같은 의미다. */
+    val duplicateOfVersionNo: Long?,
     val indexing: IndexingDetail,
     val searchable: Boolean,
 )
@@ -61,6 +63,8 @@ data class DocumentVersionDetailResponse(
     val mimeType: String,
     val fileSize: Long,
     val uploadedAt: Instant,
+    /** 같은 내용을 올린 가장 이른 이전 버전. 없으면 null. 업로드 응답과 같은 의미다. */
+    val duplicateOfVersionNo: Long?,
     val indexing: IndexingDetail,
     val searchable: Boolean,
     val sourceMetadata: Map<String, Any?>?,
