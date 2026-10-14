@@ -1,5 +1,5 @@
-# 테스트는 local 프로파일로 PostgreSQL(pgvector, pgcrypto)과 MinIO 에 붙는다.
-# docker-compose.local.yml 의 postgres·minio 와 같은 환경을 만든 뒤 ./gradlew test 를 돌린다.
+# 테스트는 local 프로파일로 PostgreSQL(pgvector, pgcrypto, pg_cron)과 MinIO 에 붙는다.
+# 기존 PostgreSQL 서비스에 pg_cron을 설치하고 재시작한 뒤 테스트를 실행한다.
 name: test
 
 on:
@@ -50,11 +50,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 로컬 컨테이너의 scripts/local-db 초기화 스크립트와 같다. 서비스 컨테이너는 볼륨을 붙일 수 없어 직접 실행한다.
+      - name: pg_cron 설치 및 PostgreSQL 재시작
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec --user root "$POSTGRES_CONTAINER" bash -ec '
+            apt-get update
+            apt-get install -y --no-install-recommends postgresql-17-cron
+          '
+
+          # pg_cron은 시작 시 로드해야 하므로 설정 후 DB를 재시작한다.
+          docker exec -i --user postgres "$POSTGRES_CONTAINER" \
+            sh -c 'cat >> "$PGDATA/postgresql.conf"' <<'CONF'
+          shared_preload_libraries = 'pg_cron'
+          cron.database_name = 'aidocs'
+          cron.use_background_workers = on
+          CONF
+          docker restart "$POSTGRES_CONTAINER"
+
+          for ((attempt = 0; attempt < 30; attempt++)); do
+            if docker exec "$POSTGRES_CONTAINER" pg_isready -h 127.0.0.1 -U aidocs -d aidocs; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$POSTGRES_CONTAINER"
+          exit 1
+
       - name: PostgreSQL 확장 설치
         env:
           PGPASSWORD: aidocs
-        run: psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 -f scripts/local-db/00-extensions.sql
+        run: |
+          psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 -f scripts/local-db/00-extensions.sql
+          psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 \
+            -c "CREATE EXTENSION IF NOT EXISTS pg_cron;"
 
       - uses: actions/setup-java@v4
         with:
