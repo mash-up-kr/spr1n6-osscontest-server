@@ -1,0 +1,48 @@
+# 대시보드가 읽는 값. patronictl list 의 Role·State·Lag 를 Patroni 지표로 다시 만든다.
+# 모든 값은 노드(node·member·host)마다 한 줄이다.
+
+groups:
+  - name: opensql-ha
+    rules:
+      # 1 = Patroni REST 응답, 0 = 응답 없음(Patroni 정지 또는 서버 다운).
+      - record: opensql:node_up
+        expr: max by (node, member, host) (up{job="patroni"})
+
+      # 2 = Leader, 1 = Replica, 0 = 응답 없음.
+      - record: opensql:node_role
+        expr: |
+          max by (node, member, host) (
+            (patroni_primary * 2 + patroni_replica)
+            or on (node) (up{job="patroni"} == 0)
+          )
+
+      # 0 = 응답 없음, 1 = stopped, 2 = running(Leader), 3 = streaming(Replica),
+      # 4 = running(Replica, 복제 끊김), 5 = 역할 없음(시작 중 등).
+      - record: opensql:node_state
+        expr: |
+          max by (node, member, host) (
+            (
+                (1 - patroni_postgres_running)
+              + patroni_postgres_running * (
+                    patroni_primary * 2
+                  + patroni_replica * (4 - patroni_postgres_streaming)
+                  + (1 - patroni_primary - patroni_replica) * 5
+                )
+            )
+            or on (node) (up{job="patroni"} == 0)
+          )
+
+      # Replica 마다 Leader 가 쓴 WAL 위치에서 Replica 가 받은 위치를 뺀 바이트 수다.
+      # 노드마다 수집 시각이 최대 2초 어긋나므로 쓰기가 많을 때는 그만큼 크게 보일 수 있다.
+      # Leader 가 없는 동안(교대 중)에는 값을 내지 않는다.
+      - record: opensql:replica_lag_bytes
+        expr: |
+          max by (node, member, host) (
+            clamp_min(
+                scalar(max(patroni_xlog_location and on (node) patroni_primary == 1))
+              - ((patroni_xlog_received_location >= patroni_xlog_replayed_location) or patroni_xlog_replayed_location),
+              0
+            )
+            and on (node) patroni_replica == 1
+          )
+          and on () (max(patroni_primary) == 1)

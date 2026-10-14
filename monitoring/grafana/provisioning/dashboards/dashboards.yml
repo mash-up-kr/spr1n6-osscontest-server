@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: aidocs
+    type: file
+    # 화면에서 고친 내용은 저장되지 않는다. 바꾸려면 JSON 파일을 고친다.
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
