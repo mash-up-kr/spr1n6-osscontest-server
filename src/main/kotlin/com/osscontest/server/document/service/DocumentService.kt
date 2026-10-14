@@ -7,6 +7,7 @@ import com.osscontest.server.common.trace.DbTraceIdBinder
 import com.osscontest.server.common.web.AuthContext
 import com.osscontest.server.common.web.Cursor
 import com.osscontest.server.common.web.PageResponse
+import com.osscontest.server.document.api.DocumentResponse
 import com.osscontest.server.document.api.DocumentSummary
 import com.osscontest.server.document.api.DocumentTitleResponse
 import com.osscontest.server.document.api.DocumentUploadResponse
@@ -103,43 +104,36 @@ class DocumentService(
         authContext: AuthContext,
         request: ListDocumentsRequest,
     ): PageResponse<DocumentSummary> {
-        val requestedStatus = request.indexingStatus?.let { parseIndexingStatus(it) }
-        var cursorId = Cursor.decode(request.cursor, DOCUMENT_CURSOR_FIELD)
-        val items = mutableListOf<DocumentSummary>()
-        var nextCursor: String? = null
+        val page = findSummaryPage(authContext, request)
 
-        // 인덱싱 상태와 검색 가능 여부는 다른 테이블을 조합해야 나오는 값이라 SQL 로 거르지 못한다.
-        // 페이지를 읽어 애플리케이션에서 걸러내고, limit 을 채울 때까지 다음 페이지로 넘어간다.
-        while (items.size <= request.limit) {
-            val documents = findDocumentPage(authContext, cursorId, request.q)
-            if (documents.isEmpty()) break
+        return PageResponse(items = page.rows.map { it.summary }, nextCursor = page.nextCursor)
+    }
 
-            val summaryContext = summaryContext(documents)
-            for (document in documents) {
-                val summary = document.toSummary(summaryContext)
-                if (requestedStatus != null && summary.latestVersionIndexingStatus != requestedStatus) continue
-                if (request.searchable != null && (summary.searchableVersionNo != null) != request.searchable) continue
+    /** 웹 목록. [listDocuments] 와 같은 페이지에 요청자의 실효 권한과 소유자를 더한다. */
+    @Transactional(readOnly = true)
+    fun listDocumentsWithAccess(
+        authContext: AuthContext,
+        request: ListDocumentsRequest,
+    ): PageResponse<DocumentResponse> {
+        val page = findSummaryPage(authContext, request)
+        val permissions = documentAccessChecker.effectivePermissions(authContext, page.rows.map { it.document })
 
-                items += summary
-
-                // limit 을 한 건 넘겼다는 것은 다음 페이지가 있다는 뜻이다. 마지막으로 담을 항목의 id 가 다음 커서가 된다.
-                if (items.size > request.limit) {
-                    nextCursor = Cursor.encode(DOCUMENT_CURSOR_FIELD, items[request.limit - 1].id)
-                    break
-                }
-            }
-
-            if (nextCursor != null || documents.size < PAGE_SCAN_SIZE) break
-            cursorId = documents.last().id
-        }
-
-        return PageResponse(items = items.take(request.limit), nextCursor = nextCursor)
+        return PageResponse(items = page.rows.map { it.toResponse(permissions) }, nextCursor = page.nextCursor)
     }
 
     @Transactional(readOnly = true)
     fun getDocument(authContext: AuthContext, documentId: Long): DocumentSummary =
         findReadableDocument(authContext, documentId)
             .let { it.toSummary(summaryContext(listOf(it))) }
+
+    /** 웹 상세. [getDocument] 에 요청자의 실효 권한과 소유자를 더한다. */
+    @Transactional(readOnly = true)
+    fun getDocumentWithAccess(authContext: AuthContext, documentId: Long): DocumentResponse {
+        val document = findReadableDocument(authContext, documentId)
+        val row = SummaryRow(document, document.toSummary(summaryContext(listOf(document))))
+
+        return row.toResponse(documentAccessChecker.effectivePermissions(authContext, listOf(document)))
+    }
 
     @Transactional
     fun updateTitle(authContext: AuthContext, documentId: Long, title: String): DocumentTitleResponse {
@@ -318,6 +312,57 @@ class DocumentService(
     private fun findWritableDocumentForUpdate(authContext: AuthContext, documentId: Long): Document =
         documentAccessChecker.requireWritableForUpdate(authContext, documentId)
 
+    private fun findSummaryPage(authContext: AuthContext, request: ListDocumentsRequest): SummaryPage {
+        val requestedStatus = request.indexingStatus?.let { parseIndexingStatus(it) }
+        var cursorId = Cursor.decode(request.cursor, DOCUMENT_CURSOR_FIELD)
+        val rows = mutableListOf<SummaryRow>()
+        var nextCursor: String? = null
+
+        // 인덱싱 상태와 검색 가능 여부는 다른 테이블을 조합해야 나오는 값이라 SQL 로 거르지 못한다.
+        // 페이지를 읽어 애플리케이션에서 걸러내고, limit 을 채울 때까지 다음 페이지로 넘어간다.
+        while (rows.size <= request.limit) {
+            val documents = findDocumentPage(authContext, cursorId, request.q)
+            if (documents.isEmpty()) break
+
+            val summaryContext = summaryContext(documents)
+            for (document in documents) {
+                val summary = document.toSummary(summaryContext)
+                if (requestedStatus != null && summary.latestVersionIndexingStatus != requestedStatus) continue
+                if (request.searchable != null && (summary.searchableVersionNo != null) != request.searchable) continue
+
+                rows += SummaryRow(document, summary)
+
+                // limit 을 한 건 넘겼다는 것은 다음 페이지가 있다는 뜻이다. 마지막으로 담을 항목의 id 가 다음 커서가 된다.
+                if (rows.size > request.limit) {
+                    nextCursor = Cursor.encode(DOCUMENT_CURSOR_FIELD, rows[request.limit - 1].summary.id)
+                    break
+                }
+            }
+
+            if (nextCursor != null || documents.size < PAGE_SCAN_SIZE) break
+            cursorId = documents.last().id
+        }
+
+        return SummaryPage(rows = rows.take(request.limit), nextCursor = nextCursor)
+    }
+
+    private fun SummaryRow.toResponse(permissions: Map<Long, Permission>): DocumentResponse =
+        DocumentResponse(
+            id = summary.id,
+            title = summary.title,
+            latestUploadVersionNo = summary.latestUploadVersionNo,
+            latestEmbeddingVersionNo = summary.latestEmbeddingVersionNo,
+            searchableVersionNo = summary.searchableVersionNo,
+            latestVersionIndexingStatus = summary.latestVersionIndexingStatus,
+            createdAt = summary.createdAt,
+            // 목록(findActivePage*)과 상세(requireReadable)는 소유자이거나 권한이 부여된 문서만 돌려준다.
+            // 권한 조회도 같은 조건을 쓰므로 실효 권한이 비지 않는다. 한쪽 조건만 바꾸면 여기서 실패한다.
+            effectivePermission = checkNotNull(permissions[summary.id]) {
+                "읽기 권한을 확인한 문서에 실효 권한이 없다: documentId=${summary.id}"
+            },
+            ownerPrincipalId = document.ownerPrincipalId,
+        )
+
     private fun findDocumentPage(authContext: AuthContext, cursorId: Long?, q: String?): List<Document> {
         val pageable = PageRequest.of(0, PAGE_SCAN_SIZE)
         val keyword = q?.takeIf { it.isNotBlank() }?.lowercase()
@@ -420,6 +465,10 @@ class DocumentService(
             indexing = IndexingProgress(context.indexingStatusByVersionId[id] ?: IndexingStatus.PENDING),
             searchable = document.searchableVersionId == id,
         )
+
+    private data class SummaryRow(val document: Document, val summary: DocumentSummary)
+
+    private data class SummaryPage(val rows: List<SummaryRow>, val nextCursor: String?)
 
     private data class DocumentSummaryContext(
         val latestVersionByDocumentId: Map<Long?, DocumentVersion>,
