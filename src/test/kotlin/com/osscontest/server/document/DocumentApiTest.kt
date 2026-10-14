@@ -27,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import java.time.Instant
-import java.util.UUID
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -89,10 +88,14 @@ class DocumentApiTest {
         assertEquals("사업계획서", documentTitle())
         assertContentEquals(content, objectStorage.get(key).use { it.readBytes() })
 
-        // 트리거가 만든 Outbox 행에 추적 ID 가 들어왔는지
-        val outbox = outboxRow()
-        assertEquals("INDEXING_REQUESTED", outbox["event_type"])
-        assertNotNull(outbox["trace_id"], "SET LOCAL 로 넘긴 trace_id 가 있어야 한다")
+        // 트리거가 등록한 Job 의 등록 계약과 추적 ID 확인
+        val job = latestJob((version["document_id"] as Number).toLong())
+        assertEquals("INDEX", job["job_type"])
+        assertEquals("PENDING", job["status"])
+        assertEquals((version["id"] as Number).toLong(), (job["document_version_id"] as Number).toLong())
+        assertEquals(0, (job["attempt_count"] as Number).toInt())
+        assertEquals(0L, (job["execution_epoch"] as Number).toLong())
+        assertNotNull(job["trace_id"], "SET LOCAL 로 넘긴 trace_id 가 있어야 한다")
     }
 
     @Test
@@ -165,6 +168,15 @@ class DocumentApiTest {
 
         uploadedKeys += latestVersion()["source_object_key"] as String
         assertEquals(2L, em.find(Document::class.java, documentId).latestUploadVersionNo)
+
+        // 버전마다 INDEX Job 이 하나씩, 등록 순서대로 생긴다.
+        val all = jobs(documentId)
+        assertEquals(2, all.size)
+        assertEquals(listOf("INDEX", "INDEX"), all.map { it["job_type"] })
+        assertEquals(
+            all.map { (it["enqueue_seq"] as Number).toLong() }.sorted(),
+            all.map { (it["enqueue_seq"] as Number).toLong() },
+        )
     }
 
     @Test
@@ -378,6 +390,11 @@ class DocumentApiTest {
             .setParameter("documentId", documentId)
             .singleResult
         assertNotNull(deletedAt)
+
+        val deleteJob = latestJob(documentId)
+        assertEquals("DELETE", deleteJob["job_type"])
+        assertEquals("PENDING", deleteJob["status"])
+        assertEquals(null, deleteJob["document_version_id"])
     }
 
     @Test
@@ -414,11 +431,8 @@ class DocumentApiTest {
     fun `인덱싱 상태를 조회한다`() {
         val documentId = createDocument("인덱싱 상태".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
-        val sourceEventId = latestOutboxId()
 
-        createIndexingJob(
-            sourceEventId = sourceEventId,
-            documentId = documentId,
+        updateLatestJob(
             versionId = versionId,
             status = "FAILED",
             phase = "CHUNKING",
@@ -444,9 +458,7 @@ class DocumentApiTest {
         val versionId = (latestVersion()["id"] as Number).toLong()
         val nextRetryAt = Instant.parse("2026-10-14T03:00:00Z")
 
-        createIndexingJob(
-            sourceEventId = latestOutboxId(),
-            documentId = documentId,
+        updateLatestJob(
             versionId = versionId,
             status = "RETRY_WAIT",
             attemptCount = 2,
@@ -470,9 +482,7 @@ class DocumentApiTest {
         val documentId = createDocument("재시도 시각 잔존".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
 
-        createIndexingJob(
-            sourceEventId = latestOutboxId(),
-            documentId = documentId,
+        updateLatestJob(
             versionId = versionId,
             status = "FAILED",
             attemptCount = 5,
@@ -492,25 +502,14 @@ class DocumentApiTest {
     }
 
     @Test
-    fun `같은 시각의 이벤트가 둘이어도 목록과 상세의 인덱싱 상태가 같다`() {
-        val documentId = createDocument("동시 이벤트".toByteArray())
+    fun `같은 버전에 Job 이 여럿이면 목록과 상세 모두 가장 늦게 등록된 Job 을 보여 준다`() {
+        val documentId = createDocument("동시 Job".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
-        val triggerEventId = latestOutboxId()
 
-        // 트리거가 만든 이벤트와 created_at 이 같은 두 번째 이벤트를 넣는다.
-        // 재인덱싱을 연달아 요청하면 실제로 생길 수 있는 상태다.
-        // UUID 는 자바 정렬에서 첫 이벤트보다 크도록 고정한다.
-        val siblingEventId = UUID.fromString("7fffffff-ffff-4fff-bfff-ffffffffffff")
-        insertSiblingIndexingEvent(siblingEventId, triggerEventId)
-
-        // 잡은 두 번째 이벤트에만 단다. 두 경로가 서로 다른 이벤트를 고르면 상태가 갈린다.
-        createIndexingJob(
-            sourceEventId = siblingEventId,
-            documentId = documentId,
-            versionId = versionId,
-            status = "COMPLETED",
-            attemptCount = 1,
-        )
+        // 첫 Job 을 실패로 끝내고, created_at 이 같은 두 번째 Job 을 완료 상태로 넣는다.
+        // 재시도가 연달아 일어나면 실제로 생길 수 있는 상태다.
+        updateLatestJob(versionId = versionId, status = "FAILED", attemptCount = 5)
+        insertSiblingJob(documentId, versionId, status = "COMPLETED")
 
         val detailBody = mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
             header(USER_ID_HEADER, user.id.toString())
@@ -523,25 +522,16 @@ class DocumentApiTest {
             jsonPath("$.items[0].id") { value(documentId) }
         }.andReturn().response.contentAsString
 
-        val detailStatus = JsonPath.read<String>(detailBody, "$.status")
-        val listStatus = JsonPath.read<String>(listBody, "$.items[0].latestVersionIndexingStatus")
-
-        // 두 경로가 최신 이벤트를 다른 규칙으로 고르면 여기서 갈린다.
-        assertEquals(listStatus, detailStatus)
+        // created_at 이 같아도 enqueue_seq 로 고르므로 두 경로가 같은 Job 을 고른다.
+        assertEquals("COMPLETED", JsonPath.read<String>(detailBody, "$.status"))
+        assertEquals("COMPLETED", JsonPath.read<String>(listBody, "$.items[0].latestVersionIndexingStatus"))
     }
 
     @Test
     fun `실패한 인덱싱 작업을 재시도한다`() {
         val documentId = createDocument("재인덱싱".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
-        val sourceEventId = latestOutboxId()
-        createIndexingJob(
-            sourceEventId = sourceEventId,
-            documentId = documentId,
-            versionId = versionId,
-            status = "FAILED",
-            attemptCount = 3,
-        )
+        updateLatestJob(versionId = versionId, status = "FAILED", attemptCount = 3)
 
         mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
             header(USER_ID_HEADER, user.id.toString())
@@ -589,39 +579,46 @@ class DocumentApiTest {
             jsonPath("$.message") { value("현재 실패 상태인 인덱싱 작업만 재시도할 수 있습니다.") }
         }
 
-        val retryEvent = outboxRow()
-        assertEquals("INDEXING_REQUESTED", retryEvent["event_type"])
-        assertEquals(sourceEventId, retryEvent["retry_of_event_id"])
-        assertEquals(
-            setOf("tenantId", "versionNo", "sourceObjectKey", "mimeType", "fileSize", "contentHash", "occurredAt"),
-            latestOutboxPayloadKeys(),
-        )
+        // 재시도는 새 Job 을 등록하고 이전 실패 Job 은 이력으로 남는다.
+        val all = jobs(documentId)
+        assertEquals(listOf("FAILED", "PENDING"), all.map { it["status"] })
+        assertEquals(listOf("INDEX", "INDEX"), all.map { it["job_type"] })
+        assertEquals(0, (latestJob(documentId)["attempt_count"] as Number).toInt())
     }
 
     @Test
-    fun `잡 생성 전 outbox 발행 실패 메시지를 인덱싱 상태에 포함한다`() {
-        val documentId = createDocument("발행 실패".toByteArray())
+    fun `재시도한 Job 이 다시 실패하면 또 재시도할 수 있다`() {
+        val documentId = createDocument("재시도 반복".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        updateLatestJob(versionId = versionId, status = "FAILED", attemptCount = 5)
 
-        em.createNativeQuery(
-            """
-            UPDATE outbox_event
-            SET publish_attempt_count = 1,
-                last_error_message = 'Kafka 발행 실패'
-            WHERE id = :eventId
-            """.trimIndent(),
-        )
-            .setParameter("eventId", latestOutboxId())
-            .executeUpdate()
-        em.flush()
-        em.clear()
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect { status { isAccepted() } }
 
-        mockMvc.get("/api/v1/documents/$documentId/versions/1/indexing") {
+        updateLatestJob(versionId = versionId, status = "FAILED", attemptCount = 5)
+
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
             header(USER_ID_HEADER, user.id.toString())
         }.andExpect {
-            status { isOk() }
-            jsonPath("$.status") { value("PENDING") }
-            jsonPath("$.attemptCount") { value(0) }
-            jsonPath("$.lastErrorMessage") { value("Kafka 발행 실패") }
+            status { isAccepted() }
+            jsonPath("$.indexing.status") { value("PENDING") }
+        }
+
+        assertEquals(listOf("FAILED", "FAILED", "PENDING"), jobs(documentId).map { it["status"] })
+    }
+
+    @Test
+    fun `완료된 버전은 재시도할 수 없다`() {
+        val documentId = createDocument("완료".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        updateLatestJob(versionId = versionId, status = "COMPLETED", attemptCount = 1)
+
+        mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("INDEXING_RETRY_NOT_ALLOWED") }
         }
     }
 
@@ -629,13 +626,7 @@ class DocumentApiTest {
     fun `실패 상태가 아니면 인덱싱을 재시도할 수 없다`() {
         val documentId = createDocument("재인덱싱 불가".toByteArray())
         val versionId = (latestVersion()["id"] as Number).toLong()
-        createIndexingJob(
-            sourceEventId = latestOutboxId(),
-            documentId = documentId,
-            versionId = versionId,
-            status = "PROCESSING",
-            attemptCount = 1,
-        )
+        updateLatestJob(versionId = versionId, status = "PROCESSING", attemptCount = 1)
 
         mockMvc.post("/api/v1/documents/$documentId/versions/1/indexing/retry") {
             header(USER_ID_HEADER, user.id.toString())
@@ -716,59 +707,23 @@ class DocumentApiTest {
         ).singleResult as Map<String, Any?>
 
     @Suppress("UNCHECKED_CAST")
-    private fun outboxRow(): Map<String, Any?> =
+    private fun latestJob(documentId: Long): Map<String, Any?> =
         em.createNativeQuery(
-            "SELECT event_type, retry_of_event_id, trace_id FROM outbox_event ORDER BY created_at DESC LIMIT 1",
+            "SELECT id, job_type, status, document_version_id, attempt_count, execution_epoch, trace_id, enqueue_seq " +
+                    "FROM indexing_job WHERE document_id = :documentId ORDER BY enqueue_seq DESC LIMIT 1",
             Map::class.java,
-        ).singleResult as Map<String, Any?>
+        ).setParameter("documentId", documentId).singleResult as Map<String, Any?>
 
-    private fun latestOutboxId(): UUID =
-        em.createNativeQuery("SELECT id FROM outbox_event ORDER BY created_at DESC LIMIT 1")
-            .singleResult as UUID
-
-    private fun latestOutboxPayloadKeys(): Set<String> =
+    @Suppress("UNCHECKED_CAST")
+    private fun jobs(documentId: Long): List<Map<String, Any?>> =
         em.createNativeQuery(
-            """
-            SELECT jsonb_object_keys(payload)
-            FROM (
-                SELECT payload
-                FROM outbox_event
-                ORDER BY created_at DESC
-                LIMIT 1
-            ) latest
-            """.trimIndent(),
-        )
-            .resultList
-            .map { it as String }
-            .toSet()
+            "SELECT id, job_type, status, document_version_id, enqueue_seq " +
+                    "FROM indexing_job WHERE document_id = :documentId ORDER BY enqueue_seq",
+            Map::class.java,
+        ).setParameter("documentId", documentId).resultList as List<Map<String, Any?>>
 
-    /** 이미 있는 이벤트와 created_at 이 같은 INDEXING_REQUESTED 이벤트를 하나 더 만든다. */
-    private fun insertSiblingIndexingEvent(newEventId: UUID, copyFromEventId: UUID) {
-        em.createNativeQuery(
-            """
-            INSERT INTO outbox_event (
-                id, tenant_id, document_id, document_version_id,
-                event_type, event_schema_version, payload,
-                status, publish_attempt_count, next_attempt_at, created_at
-            )
-            SELECT
-                :newEventId, tenant_id, document_id, document_version_id,
-                event_type, event_schema_version, payload,
-                status, publish_attempt_count, next_attempt_at, created_at
-            FROM outbox_event
-            WHERE id = :copyFromEventId
-            """.trimIndent(),
-        )
-            .setParameter("newEventId", newEventId)
-            .setParameter("copyFromEventId", copyFromEventId)
-            .executeUpdate()
-        em.flush()
-        em.clear()
-    }
-
-    private fun createIndexingJob(
-        sourceEventId: UUID,
-        documentId: Long,
+    /** 트리거가 등록한 버전의 최신 Job 을 Worker 가 처리한 것처럼 바꾼다. */
+    private fun updateLatestJob(
         versionId: Long,
         status: String,
         phase: String? = null,
@@ -781,40 +736,23 @@ class DocumentApiTest {
         val leased = status == "PROCESSING"
         em.createNativeQuery(
             """
-            INSERT INTO indexing_job (
-                source_event_id,
-                document_id,
-                document_version_id,
-                status,
-                phase,
-                attempt_count,
-                last_error_message,
-                last_error_code,
-                next_retry_at,
-                worker_id,
-                lease_until,
-                created_at,
-                updated_at
-            )
-            VALUES (
-                :sourceEventId,
-                :documentId,
-                :versionId,
-                :status,
-                :phase,
-                :attemptCount,
-                :lastErrorMessage,
-                :lastErrorCode,
-                :nextRetryAt,
-                :workerId,
-                CASE WHEN :leased THEN now() + interval '5 minutes' END,
-                now(),
-                now()
+            UPDATE indexing_job
+            SET status = :status,
+                phase = :phase,
+                attempt_count = :attemptCount,
+                last_error_message = :lastErrorMessage,
+                last_error_code = :lastErrorCode,
+                next_retry_at = :nextRetryAt,
+                worker_id = :workerId,
+                lease_until = CASE WHEN :leased THEN now() + interval '5 minutes' END,
+                updated_at = now()
+            WHERE id = (
+                SELECT id FROM indexing_job
+                WHERE document_version_id = :versionId AND job_type = 'INDEX'
+                ORDER BY enqueue_seq DESC LIMIT 1
             )
             """.trimIndent(),
         )
-            .setParameter("sourceEventId", sourceEventId)
-            .setParameter("documentId", documentId)
             .setParameter("versionId", versionId)
             .setParameter("status", status)
             .setParameter("phase", phase)
@@ -824,6 +762,26 @@ class DocumentApiTest {
             .setParameter("nextRetryAt", nextRetryAt)
             .setParameter("workerId", if (leased) "test-worker" else null)
             .setParameter("leased", leased)
+            .executeUpdate()
+        em.flush()
+        em.clear()
+    }
+
+    /** 같은 버전에 created_at 이 같은 INDEX Job 을 하나 더 넣는다. 최신 Job 선택 규칙을 검사할 때 쓴다. */
+    private fun insertSiblingJob(documentId: Long, versionId: Long, status: String) {
+        em.createNativeQuery(
+            """
+            INSERT INTO indexing_job (source_event_id, document_id, document_version_id, job_type, status,
+                attempt_count, execution_epoch, created_at, updated_at)
+            SELECT gen_random_uuid(), :documentId, :versionId, 'INDEX', :status, 1, 0, created_at, now()
+            FROM indexing_job
+            WHERE document_version_id = :versionId
+            ORDER BY enqueue_seq DESC LIMIT 1
+            """.trimIndent(),
+        )
+            .setParameter("documentId", documentId)
+            .setParameter("versionId", versionId)
+            .setParameter("status", status)
             .executeUpdate()
         em.flush()
         em.clear()

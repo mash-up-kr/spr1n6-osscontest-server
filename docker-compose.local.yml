@@ -35,10 +35,12 @@ services:
       start_period: 10s
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # 공식 minio/minio·minio/mc 이미지는 더 이상 받을 수 없어 Bitnami 레거시 이미지를 쓴다.
+    image: bitnamilegacy/minio:2025.7.23
     container_name: aidocs-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    # 공식 이미지가 root 로 만든 기존 볼륨을 그대로 읽으려고 root 로 띄운다. 이미지 기본 사용자(1001)는 쓰기 권한이 없다.
+    user: "0"
     environment:
       MINIO_ROOT_USER: aidocs
       MINIO_ROOT_PASSWORD: aidocs1234
@@ -46,7 +48,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - aidocs-minio-data:/data
+      - aidocs-minio-data:/bitnami/minio/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -55,7 +57,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: bitnamilegacy/minio-client:2025.7.21
     container_name: aidocs-minio-init
     depends_on:
       minio:
