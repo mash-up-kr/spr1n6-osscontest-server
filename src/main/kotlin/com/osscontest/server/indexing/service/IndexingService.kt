@@ -4,6 +4,7 @@ import com.osscontest.server.common.exception.BusinessException
 import com.osscontest.server.common.exception.ErrorCode
 import com.osscontest.server.common.trace.TraceId
 import com.osscontest.server.common.web.AuthContext
+import com.osscontest.server.document.api.IndexingDetail
 import com.osscontest.server.document.api.IndexingProgress
 import com.osscontest.server.document.domain.Document
 import com.osscontest.server.document.domain.DocumentVersion
@@ -89,6 +90,19 @@ class IndexingService(
     @Transactional(readOnly = true)
     override fun statusOf(version: DocumentVersion): IndexingStatus = state(version).status
 
+    @Transactional(readOnly = true)
+    override fun detailOf(version: DocumentVersion): IndexingDetail = state(version).toDetail(version.chunkCount)
+
+    @Transactional(readOnly = true)
+    override fun detailByVersionId(versions: Collection<DocumentVersion>): Map<Long?, IndexingDetail> {
+        val stateByVersionId = stateByVersionId(versions.mapNotNull { it.id })
+
+        return versions.associate { version ->
+            val state = stateByVersionId[version.id] ?: IndexingState(status = IndexingStatus.PENDING)
+            version.id to state.toDetail(version.chunkCount)
+        }
+    }
+
     private fun findVersion(document: Document, versionNo: Long): DocumentVersion =
         documentVersionRepository.findByDocumentIdAndVersionNo(document.id!!, versionNo)
             ?: throw BusinessException(ErrorCode.DOCUMENT_VERSION_NOT_FOUND)
@@ -119,6 +133,19 @@ class IndexingService(
             lastErrorMessage = lastErrorMessage,
             // next_retry_at 은 Worker 소유 컬럼이고 RETRY_WAIT 에서만 의미가 있다. 다른 상태에 값이 남아 있어도 노출하지 않는다.
             nextRetryAt = nextRetryAt.takeIf { status == IndexingStatus.RETRY_WAIT },
+            lastErrorCode = lastErrorCode,
+        )
+
+    private fun IndexingState.toDetail(chunkCount: Int?): IndexingDetail =
+        IndexingDetail(
+            status = status,
+            phase = phase,
+            attemptCount = attemptCount,
+            chunkCount = chunkCount,
+            startedAt = startedAt,
+            completedAt = completedAt,
+            lastErrorMessage = lastErrorMessage,
+            nextRetryAt = nextRetryAt,
             lastErrorCode = lastErrorCode,
         )
 

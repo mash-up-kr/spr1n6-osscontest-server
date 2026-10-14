@@ -300,6 +300,70 @@ class DocumentApiTest {
     }
 
     @Test
+    fun `최신 Job 이 RETRY_WAIT 인 버전의 목록과 상세에 단계·시도 횟수·오류·재시도 시각이 나온다`() {
+        val documentId = createDocument("버전 인덱싱 상세".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        updateLatestJob(
+            versionId = versionId,
+            status = "RETRY_WAIT",
+            phase = "EMBEDDING",
+            attemptCount = 2,
+            lastErrorMessage = "임베딩 응답이 없습니다",
+            lastErrorCode = "EMBEDDING_TIMEOUT",
+            nextRetryAt = Instant.parse("2026-10-14T03:00:00Z"),
+        )
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].indexing.status") { value("RETRY_WAIT") }
+            jsonPath("$.items[0].indexing.phase") { value("EMBEDDING") }
+            jsonPath("$.items[0].indexing.attemptCount") { value(2) }
+            jsonPath("$.items[0].indexing.lastErrorMessage") { value("임베딩 응답이 없습니다") }
+            jsonPath("$.items[0].indexing.lastErrorCode") { value("EMBEDDING_TIMEOUT") }
+            jsonPath("$.items[0].indexing.nextRetryAt") { value("2026-10-14T03:00:00Z") }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.indexing.status") { value("RETRY_WAIT") }
+            jsonPath("$.indexing.phase") { value("EMBEDDING") }
+            jsonPath("$.indexing.attemptCount") { value(2) }
+            jsonPath("$.indexing.lastErrorMessage") { value("임베딩 응답이 없습니다") }
+            jsonPath("$.indexing.lastErrorCode") { value("EMBEDDING_TIMEOUT") }
+            jsonPath("$.indexing.nextRetryAt") { value("2026-10-14T03:00:00Z") }
+        }
+    }
+
+    @Test
+    fun `버전 목록과 상세의 인덱싱 상태에 청크 수가 나온다`() {
+        val documentId = createDocument("청크 수".toByteArray())
+        val versionId = (latestVersion()["id"] as Number).toLong()
+        em.createNativeQuery("UPDATE document_version SET indexed_at = now(), chunk_count = 3 WHERE id = :versionId")
+            .setParameter("versionId", versionId)
+            .executeUpdate()
+        updateLatestJob(versionId = versionId, status = "COMPLETED", attemptCount = 1)
+
+        mockMvc.get("/api/v1/documents/$documentId/versions") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].indexing.status") { value("COMPLETED") }
+            jsonPath("$.items[0].indexing.chunkCount") { value(3) }
+        }
+
+        mockMvc.get("/api/v1/documents/$documentId/versions/1") {
+            header(USER_ID_HEADER, user.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.indexing.chunkCount") { value(3) }
+        }
+    }
+
+    @Test
     fun `버전 목록 limit 이 범위를 벗어나면 400 이다`() {
         val documentId = createDocument("버전".toByteArray())
 

@@ -13,6 +13,7 @@ import com.osscontest.server.document.api.DocumentTitleResponse
 import com.osscontest.server.document.api.DocumentUploadResponse
 import com.osscontest.server.document.api.DocumentVersionDetailResponse
 import com.osscontest.server.document.api.DocumentVersionSummary
+import com.osscontest.server.document.api.IndexingDetail
 import com.osscontest.server.document.api.IndexingProgress
 import com.osscontest.server.document.api.ListDocumentVersionsRequest
 import com.osscontest.server.document.api.ListDocumentsRequest
@@ -202,7 +203,7 @@ class DocumentService(
             mimeType = version.mimeType,
             fileSize = version.fileSize,
             uploadedAt = version.createdAt!!,
-            indexing = IndexingProgress(indexingStatusReader.statusOf(version)),
+            indexing = indexingStatusReader.detailOf(version),
             searchable = document.searchableVersionId == version.id,
             sourceMetadata = version.sourceMetadata,
             extractedMetadata = version.extractedMetadata,
@@ -449,7 +450,7 @@ class DocumentService(
 
     private fun versionSummaryContext(versions: List<DocumentVersion>): VersionSummaryContext =
         VersionSummaryContext(
-            indexingStatusReader.statusByVersionId(versions.mapNotNull { it.id }),
+            indexingByVersionId = indexingStatusReader.detailByVersionId(versions),
         )
 
     private fun DocumentVersion.toVersionSummary(
@@ -462,7 +463,7 @@ class DocumentService(
             mimeType = mimeType,
             fileSize = fileSize,
             uploadedAt = createdAt!!,
-            indexing = IndexingProgress(context.indexingStatusByVersionId[id] ?: IndexingStatus.PENDING),
+            indexing = context.indexingByVersionId.getValue(id),
             searchable = document.searchableVersionId == id,
         )
 
@@ -477,7 +478,7 @@ class DocumentService(
     )
 
     private data class VersionSummaryContext(
-        val indexingStatusByVersionId: Map<Long?, IndexingStatus>,
+        val indexingByVersionId: Map<Long?, IndexingDetail>,
     )
 
     private fun parseIndexingStatus(value: String): IndexingStatus =

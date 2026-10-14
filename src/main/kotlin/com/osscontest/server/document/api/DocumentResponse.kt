@@ -51,7 +51,7 @@ data class DocumentVersionSummary(
     val mimeType: String,
     val fileSize: Long,
     val uploadedAt: Instant,
-    val indexing: IndexingProgress,
+    val indexing: IndexingDetail,
     val searchable: Boolean,
 )
 
@@ -61,7 +61,7 @@ data class DocumentVersionDetailResponse(
     val mimeType: String,
     val fileSize: Long,
     val uploadedAt: Instant,
-    val indexing: IndexingProgress,
+    val indexing: IndexingDetail,
     val searchable: Boolean,
     val sourceMetadata: Map<String, Any?>?,
     val extractedMetadata: Map<String, Any?>?,
