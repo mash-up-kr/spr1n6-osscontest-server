@@ -55,10 +55,12 @@ services:
       start_period: 20s
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # local 스택과 같은 Bitnami 레거시 이미지를 쓴다.
+    image: bitnamilegacy/minio:2025.7.23
     container_name: aidocs-dev-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    # 공식 이미지가 root 로 만든 기존 볼륨을 그대로 읽으려고 root 로 띄운다.
+    user: "0"
     environment:
       MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:-aidocs}
       MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:-aidocs1234}
@@ -67,7 +69,7 @@ services:
       - "${MINIO_HOST_PORT:-9010}:9000"
       - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"
     volumes:
-      - aidocs-dev-minio-data:/data
+      - aidocs-dev-minio-data:/bitnami/minio/data
     healthcheck:
       test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
@@ -76,7 +78,7 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: bitnamilegacy/minio-client:2025.7.21
     container_name: aidocs-dev-minio-init
     depends_on:
       minio:
