@@ -13,9 +13,27 @@ services:
     # pgvector 가 들어 있는 이미지다. init_schema 가 CREATE EXTENSION vector 를 실행하므로
     # 맨 PostgreSQL 이미지로는 마이그레이션이 실패한다.
     # 0.8.1-pg17 은 DB 클러스터(PostgreSQL 17.8, pgvector 0.8.1)와 버전이 같다.
-    image: pgvector/pgvector:0.8.1-pg17
+    # Job 회수 스케줄 마이그레이션(V20261014_004)이 pg_cron 을 쓰는데 이 이미지에는 없어서 패키지를 더한다.
+    # DB 클러스터는 pg_cron 이 Flyway 밖에서 설치돼 있다는 전제로 동작한다. 로컬도 같은 전제를 맞춘다.
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM pgvector/pgvector:0.8.1-pg17
+        RUN apt-get update \
+            && apt-get install -y --no-install-recommends postgresql-17-cron \
+            && rm -rf /var/lib/apt/lists/*
+    image: aidocs-local-postgres
     container_name: aidocs-postgres
     restart: unless-stopped
+    # pg_cron 은 기동 때 미리 로드해야 CREATE EXTENSION 이 된다.
+    # cron.database_name 의 기본값은 postgres 라 작업을 등록하는 aidocs 로 바꾼다.
+    # cron.use_background_workers 는 CI 와 달리 DB 클러스터와 같은 기본값(off)으로 둔다.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_cron
+      - -c
+      - cron.database_name=aidocs
     environment:
       POSTGRES_DB: aidocs
       POSTGRES_USER: aidocs
@@ -25,6 +43,8 @@ services:
       - "5432:5432"
     volumes:
       # initdb 는 데이터 디렉터리가 빌 때만 돈다. 스크립트를 고쳤으면 down -v 로 볼륨을 지우고 다시 올린다.
+      # pg_cron 추가 전에 만든 볼륨은 지우지 않고 아래를 한 번 실행해도 된다.
+      #   docker compose -f docker-compose.local.yml exec postgres psql -U aidocs -d aidocs -c "CREATE EXTENSION IF NOT EXISTS pg_cron"
       - aidocs-postgres-data:/var/lib/postgresql/data
       - ./scripts/local-db:/docker-entrypoint-initdb.d:ro
     healthcheck:
