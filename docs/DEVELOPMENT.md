@@ -133,7 +133,7 @@ VPN으로 VPC에 붙어 있으면 `.env`에서 `COMPOSE_PROFILES`를 비우고 `
 
 ### 노드 모니터링 대시보드
 
-DB 노드 3대의 역할(Leader/Replica)·상태·복제 지연을 Grafana로 본다. `patronictl list`와 같은 내용을 2초마다 갱신한다. dev 스택과 따로 띄운다.
+DB 노드 3대의 역할(Leader/Replica)·상태·복제 지연과 OpenProxy·VIP, etcd 상태를 Grafana로 본다. 2초마다 갱신하고, DB 노드 부분은 `patronictl list`와 같은 내용이다. dev 스택과 따로 띄운다.
 
 ```bash
 docker compose -f docker-compose.monitoring.yml up -d
@@ -141,16 +141,29 @@ docker compose -f docker-compose.monitoring.yml up -d
 docker compose -f docker-compose.monitoring.yml down
 ```
 
-자료는 각 노드의 Patroni가 내보내는 지표(`8008/metrics`)다. 8008은 클러스터 안에서만 열려 있어 `patroni-tunnel` 컨테이너가 db-01을 거치는 SSH 터널로 가져온다. `.env`의 `SSH_*`를 dev 스택과 같이 쓰고, DB 서버에는 아무것도 설치하지 않는다.
+클러스터 포트는 밖에서 막혀 있어 `cluster-tunnel` 컨테이너가 db-01을 거치는 SSH 터널로 가져온다. `.env`의 `SSH_*`를 dev 스택과 같이 쓴다. 터널 포트는 `monitoring/cluster-tunnel/entrypoint.sh` 머리 주석에 있다.
+
+| 자료 | 가져오는 곳 |
+|---|---|
+| DB 노드 역할·상태·Lag | 노드마다 Patroni 지표 (`8008/metrics`) |
+| etcd 리더·응답 | 노드마다 etcd 지표 (`2379/metrics`) |
+| OpenProxy 풀별 연결 수 | db-02·db-03 OpenProxy 지표 (`9930/metrics`). 노드 사이에도 막힌 포트라 각 서버에 SSH로 들어가 가져온다 |
+| OpenProxy 응답, VIP 위치 | 지표로 나오지 않아 `cluster-tunnel`이 직접 확인한다(`node_probe.py`). 6432에 PostgreSQL 요청을 보내 응답을 보고, db-02·db-03의 `ip addr`에서 VIP를 찾는다 |
+
+OpenProxy 지표는 서버의 `openproxy.toml` `[general]`에 아래 두 줄을 넣고 OpenProxy를 재시작해야 나온다. 없으면 풀별 연결 수만 비고 나머지는 그대로 보인다.
+
+```toml
+enable_prometheus_exporter = true
+prometheus_exporter_port = 9930
+```
 
 | 화면 | 내용 |
 |---|---|
-| 맨 위 숫자 | Leader 노드, streaming Replica 수, 응답 노드 수, TL, 최대 Lag |
-| 노드 현황 | 노드마다 멤버·IP·역할·상태·TL·Lag·Postgres 시작 시각 |
-| 노드별 상태 변화 | 노드마다 상태가 바뀐 시점을 색 띠로 보여 준다 |
-| Replica Lag | Replica마다 Leader보다 뒤처진 바이트 수 |
+| DB 노드 · Patroni | Leader 노드, streaming Replica 수, 응답 노드 수, TL, 최대 Lag. 노드마다 멤버·IP·역할·상태·Lag·Postgres 시작 시각과 상태 변화 |
+| OpenProxy · VIP | VIP 위치와 응답, OpenProxy 응답, 풀별 클라이언트·DB 서버 연결, 대기 클라이언트. VIP 위치와 응답 변화 |
+| etcd | 노드마다 응답·역할(리더/팔로워)·리더가 바뀐 횟수·DB 크기와 역할 변화 |
 
-노드 3대는 고정 목록이다. Patroni를 멈추거나 서버가 꺼진 노드는 목록에서 빠지지 않고 빨간 `응답 없음`으로 남는다. `patronictl list`에는 `stopped`로 나오다가 30초쯤 뒤 줄이 사라진다. 역할·상태·Lag를 계산하는 규칙은 `monitoring/prometheus/rules.yml`에 있다.
+노드 3대는 고정 목록이다. Patroni를 멈추거나 서버가 꺼진 노드는 목록에서 빠지지 않고 빨간 `응답 없음`으로 남는다. `patronictl list`에는 `stopped`로 나오다가 30초쯤 뒤 줄이 사라진다. 세 노드가 한꺼번에 `응답 없음`이면 클러스터보다 먼저 터널을 본다(`docker logs aidocs-monitoring-cluster-tunnel`). 역할·상태 같은 코드를 계산하는 규칙은 `monitoring/prometheus/rules.yml`에 있다.
 
 Lag는 Leader가 쓴 WAL 위치에서 Replica가 받은 WAL 위치를 뺀 값이다. 노드마다 수집 시각이 최대 2초 어긋나므로 쓰기가 많을 때는 그만큼 크게 보일 수 있다.
 
@@ -164,7 +177,7 @@ Lag는 Leader가 쓴 WAL 위치에서 Replica가 받은 WAL 위치를 뺀 값이
 |---|---|
 | `docker-compose.local.yml` | `local`: PostgreSQL·MinIO·server·worker. 테스트는 PostgreSQL·MinIO만 쓴다 |
 | `docker-compose.dev.yml` | `dev`: DB 클러스터로 가는 SSH 터널·MinIO·server·worker |
-| `docker-compose.monitoring.yml` | 노드 모니터링: Patroni 지표용 SSH 터널·Prometheus·Grafana |
+| `docker-compose.monitoring.yml` | 노드 모니터링: 클러스터 SSH 터널·Prometheus·Grafana |
 
 ---
 

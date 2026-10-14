@@ -1,8 +1,9 @@
-# 대시보드가 읽는 값. patronictl list 의 Role·State·Lag 를 Patroni 지표로 다시 만든다.
-# 모든 값은 노드(node·member·host)마다 한 줄이다.
+# 대시보드가 읽는 값. 상태를 숫자 코드로 만들고, 대시보드가 코드를 글자와 색으로 바꿔 보여 준다.
+# 모든 값은 노드마다 한 줄이다.
 
 groups:
-  - name: opensql-ha
+  # patronictl list 의 Role·State·Lag 를 Patroni 지표로 다시 만든다.
+  - name: patroni
     rules:
       # 1 = Patroni REST 응답, 0 = 응답 없음(Patroni 정지 또는 서버 다운).
       - record: opensql:node_up
@@ -46,3 +47,51 @@ groups:
             and on (node) patroni_replica == 1
           )
           and on () (max(patroni_primary) == 1)
+
+  - name: openproxy
+    rules:
+      # 1 = OpenProxy 가 PostgreSQL 프로토콜로 응답, 0 = 응답 없음. node 는 db-02·db-03·vip.
+      - record: opensql:openproxy_up
+        expr: max by (node, host) (opensql_openproxy_up)
+
+      # VIP 가 어느 서버에 붙어 있는지. 0 = 어디에도 없음, 2 = db-02, 3 = db-03, 5 = 두 서버 모두.
+      # 두 서버 중 하나라도 확인에 실패하면 값을 내지 않는다.
+      - record: opensql:vip_location
+        expr: |
+          sum(opensql_vip_assigned{node="db-02"}) * 2
+          + sum(opensql_vip_assigned{node="db-03"}) * 3
+
+      # 클라이언트 연결 수. 풀마다 활성·유휴·대기를 더한다.
+      - record: opensql:openproxy_clients
+        expr: |
+          sum by (node, host, pool) (
+            openproxy_pools_cl_active + openproxy_pools_cl_idle + openproxy_pools_cl_waiting
+          )
+
+      # 서버 연결을 기다리는 클라이언트 수. 풀이 가득 차면 늘어난다.
+      - record: opensql:openproxy_clients_waiting
+        expr: sum by (node, host, pool) (openproxy_pools_cl_waiting)
+
+      # DB 로 열린 서버 연결 수. 풀마다 활성·유휴·로그인 중을 더한다.
+      - record: opensql:openproxy_server_connections
+        expr: |
+          sum by (node, host, pool) (
+            openproxy_pools_sv_active + openproxy_pools_sv_idle + openproxy_pools_sv_login
+          )
+
+  - name: etcd
+    rules:
+      # 1 = etcd 응답, 0 = 응답 없음.
+      - record: opensql:etcd_up
+        expr: max by (node, host) (up{job="etcd"})
+
+      # 0 = 응답 없음, 1 = 팔로워, 2 = 리더, 3 = 리더를 모름(과반이 안 모임).
+      - record: opensql:etcd_role
+        expr: |
+          max by (node, host) (
+            (
+                etcd_server_is_leader * 2
+              + (1 - etcd_server_is_leader) * (etcd_server_has_leader + (1 - etcd_server_has_leader) * 3)
+            )
+            or on (node) (up{job="etcd"} == 0)
+          )
