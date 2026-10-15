@@ -129,8 +129,6 @@ docker compose -f docker-compose.dev.yml up -d --build
 | `worker` | `db-tunnel:6432` / `aidocs` pool |
 | `minio` | `minio:9000` between containers, `localhost:9010` from the host (console `9011`) |
 
-When you are on the VPC through a VPN, clear `COMPOSE_PROFILES` and set `COMPOSE_DB_HOST=10.40.1.100` in `.env`. The stack then connects to the VIP directly without `db-tunnel`.
-
 ### Node monitoring dashboard
 
 Shows the role (Leader/Replica), state and replication lag of the three DB nodes, plus OpenProxy, VIP and etcd status, in Grafana. It refreshes every 2 seconds, and the DB node part carries the same information as `patronictl list`. It runs separately from the dev stack.

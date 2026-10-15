@@ -4,7 +4,6 @@
 #   docker compose -f docker-compose.dev.yml up -d --build
 #
 # DB 는 db-01 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 간다. 컨테이너끼리는 db-tunnel:6432 를 본다.
-# VPN 으로 VPC 에 붙어 있으면 .env 에서 COMPOSE_PROFILES 를 비우고 COMPOSE_DB_HOST=10.40.1.100 으로 둔다.
 # 호스트에서 ./scripts/tunnel.sh 를 켤 필요가 없고 호스트 포트도 열지 않는다.
 # 마이그레이션은 자동으로 적용하지 않는다. 적용 규칙은 docs/DEVELOPMENT.md 를 따른다.
 #
@@ -14,7 +13,6 @@ name: aidocs-dev
 
 services:
   db-tunnel:
-    profiles: [ tunnel ]
     image: alpine:3.20
     container_name: aidocs-dev-db-tunnel
     restart: unless-stopped
@@ -98,12 +96,12 @@ services:
     container_name: aidocs-dev-server
     restart: unless-stopped
     depends_on:
-      db-tunnel: { condition: service_healthy, required: false }
+      db-tunnel: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      DB_HOST: ${COMPOSE_DB_HOST:-db-tunnel}
-      DB_PORT: ${COMPOSE_DB_PORT:-6432}
+      DB_HOST: db-tunnel
+      DB_PORT: 6432
       # OpenProxy 풀 이름. 실제 DB 는 aidocs 다.
       DB_NAME: aidocs_session
       DB_USERNAME: ${DB_USERNAME:-aidocs}
@@ -138,11 +136,11 @@ services:
     restart: unless-stopped
     depends_on:
       server: { condition: service_healthy }
-      db-tunnel: { condition: service_healthy, required: false }
+      db-tunnel: { condition: service_healthy }
       minio: { condition: service_healthy }
     environment:
       # OpenProxy aidocs 풀(일감 처리). 파라미터는 OpenProxy 가 요구한다.
-      DB_URL: jdbc:postgresql://${COMPOSE_DB_HOST:-db-tunnel}:${COMPOSE_DB_PORT:-6432}/aidocs?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true
+      DB_URL: jdbc:postgresql://db-tunnel:6432/aidocs?assumeMinServerVersion=9.0&preferQueryMode=extendedForPrepared&tcpKeepAlive=true
       # 워커는 스프링 부트라 표준 환경 변수로 Hikari 설정을 받는다. OpenProxy 가 요구하는 연결 초기화다.
       SPRING_DATASOURCE_HIKARI_CONNECTIONINITSQL: "SET SERVER ROLE TO 'default'"
       SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: "-1"

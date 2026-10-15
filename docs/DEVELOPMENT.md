@@ -129,8 +129,6 @@ docker compose -f docker-compose.dev.yml up -d --build
 | `worker` | `db-tunnel:6432` / `aidocs` 풀 |
 | `minio` | 컨테이너끼리 `minio:9000`, 호스트에서 `localhost:9010` (콘솔 `9011`) |
 
-VPN으로 VPC에 붙어 있으면 `.env`에서 `COMPOSE_PROFILES`를 비우고 `COMPOSE_DB_HOST=10.40.1.100`으로 둔다. `db-tunnel` 없이 VIP로 바로 붙는다.
-
 ### 노드 모니터링 대시보드
 
 DB 노드 3대의 역할(Leader/Replica)·상태·복제 지연과 OpenProxy·VIP, etcd 상태를 Grafana로 본다. 2초마다 갱신하고, DB 노드 부분은 `patronictl list`와 같은 내용이다. dev 스택과 따로 띄운다.
