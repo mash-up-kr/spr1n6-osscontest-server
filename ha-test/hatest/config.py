@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """시험 대상 클러스터 설정을 읽는다.
 
 값은 환경변수(HA_ 접두사), 저장소 루트 .env 의 HA_ 키, ha-test/cluster.conf 순서로 찾는다.

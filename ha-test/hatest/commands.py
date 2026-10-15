@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """노드에서 실행할 bash 스크립트를 만든다.
 
 스크립트는 SSH 표준입력으로 보낸다(remote.Remote). 그래서 셸 따옴표를 겹쳐 쓸 일이 없다.

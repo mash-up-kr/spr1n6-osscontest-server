@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 #
 # HA 시험 기록 도구. 관찰 노드(db-03)에서 DB OS 계정(opensql)으로 돈다. ha-test 가 올리고 부른다.
 #

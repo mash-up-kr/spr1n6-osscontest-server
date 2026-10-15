@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """모의 클러스터로 6개 TC 를 끝까지 돌린다. 흐름·측정·판정·원복이 함께 맞물리는지 본다."""
 import io
 import unittest

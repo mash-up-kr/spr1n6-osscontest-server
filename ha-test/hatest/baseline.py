@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """기준 상태 검사. 시험 전과 원복 뒤에 같은 항목을 본다."""
 from __future__ import annotations
 

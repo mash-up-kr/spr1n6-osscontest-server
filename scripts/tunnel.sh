@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 #
 # DB 클러스터 SSH 터널을 열고 닫는다. db-01 을 거쳐 OpenProxy VIP(10.40.1.100:6432)로 연다.
 #

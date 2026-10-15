@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 # Single-AZ public subnet for initial 3-node development/test cluster.
 resource "aws_vpc" "ha" {
   cidr_block           = "10.40.0.0/16"

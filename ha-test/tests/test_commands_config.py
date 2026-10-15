@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """원격 명령 조립과 설정 읽기."""
 import unittest
 

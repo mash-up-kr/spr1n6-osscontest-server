@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """원격 명령과 기록 도구의 출력을 값으로 바꾼다. 형식이 어긋난 줄은 조용히 넘기지 않고 ParseError 를 낸다."""
 from __future__ import annotations
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """
 청크 JSONL 을 받아 LLM 으로 질의-정답 쌍(평가 답안지)을 만든다.
 

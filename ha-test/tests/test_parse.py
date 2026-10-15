@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """서버·기록 도구 출력 파싱. 형식이 어긋난 줄은 ParseError 로 드러내고 조용히 넘기지 않는다."""
 import json
 import unittest

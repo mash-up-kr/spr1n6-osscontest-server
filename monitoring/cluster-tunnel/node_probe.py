@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """Patroni·etcd·OpenProxy 가 지표로 내보내지 않는 상태를 직접 확인해 Prometheus 지표로 낸다.
 
   opensql_openproxy_up{node,host}        OpenProxy(6432)가 PostgreSQL 프로토콜로 응답하면 1. node="vip" 는 VIP 주소로 확인한 값

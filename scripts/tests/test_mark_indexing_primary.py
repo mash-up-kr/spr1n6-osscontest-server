@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """Exercise the Patroni callback with fake psql/sleep; never connect to a DB."""
 
 import json

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """화면 출력. 진행 단계를 시각과 함께 찍고, 같은 내용을 events.log 로 남긴다."""
 from __future__ import annotations
 

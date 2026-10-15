@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """클러스터에서 읽은 상태와 기록을 담는 값."""
 from __future__ import annotations
 

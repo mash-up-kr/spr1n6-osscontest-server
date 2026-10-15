@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """노드에 SSH 로 bash 스크립트를 보내 실행한다.
 
 스크립트는 표준입력으로 보내고 main() 함수로 감싸 끝까지 읽은 뒤에 실행한다. 그래야 스크립트 안의 명령이

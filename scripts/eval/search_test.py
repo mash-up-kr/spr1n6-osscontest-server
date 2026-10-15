@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """
 qa_set.json의 질의를 실제 Server의 POST /api/v1/search에 태워 Recall@10/MRR을 잰다.
 

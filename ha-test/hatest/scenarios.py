@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """TC 별 시나리오. 장애를 넣고 측정해 성공 기준을 판정한 Outcome 을 돌려준다.
 
 장애를 넣은 뒤에는 상태가 바뀔 때까지 몇 초마다 한 줄씩 지금 상태(Leader·쓰기·VIP)를 찍는다. 시연에서 내려가고

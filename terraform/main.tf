@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 locals {
   nodes            = toset(["01", "02", "03"])
   node_private_ips = { "01" = "10.40.1.11", "02" = "10.40.1.12", "03" = "10.40.1.13" }

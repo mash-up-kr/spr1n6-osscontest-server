@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """시험 결과 형식. 모든 TC 가 같은 항목(TC · 기준 상태 · 장애 주입 시각 · 측정값 · 성공 기준 · 판정 · 원복 확인)을 같은 순서로 낸다."""
 from __future__ import annotations
 

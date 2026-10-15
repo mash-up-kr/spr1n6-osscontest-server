@@ -227,11 +227,15 @@ MCP 클라이언트 설정에 엔드포인트와 인증 헤더를 등록합니�
 |---|---|
 | Spring Boot | Apache-2.0 |
 | Kotlin | Apache-2.0 |
+| Spring AI | Apache-2.0 |
+| AWS SDK for Java v2 | Apache-2.0 |
+| Flyway (flyway-core, flyway-database-postgresql) | Apache-2.0 |
+| Apache Lucene (Nori) | Apache-2.0 |
+| Jackson | Apache-2.0 |
 | PostgreSQL | PostgreSQL License |
 | PostgreSQL JDBC Driver | BSD-2-Clause |
 | Hibernate ORM | Apache-2.0 |
 | pgvector | PostgreSQL License |
-| Apache Kafka | Apache-2.0 |
-| MinIO | AGPL-3.0 |
+| MinIO | AGPL-3.0 (별도 컨테이너로만 실행, 소스 미포함·미링크. 애플리케이션은 AWS SDK S3 API로 통신) |
 
 Tmax OpenSQL은 티맥스티베로의 상용 제품이며, 본 저장소에는 포함되어 있지 않습니다.
