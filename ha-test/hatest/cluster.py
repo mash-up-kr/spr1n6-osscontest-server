@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """실제 클러스터. 시나리오가 쓰는 관찰·조작·기록 도구 기능을 SSH 원격 실행으로 제공한다.
 
 모의 클러스터(simulated.SimulatedCluster)도 같은 메서드를 갖는다. 시나리오는 둘을 구분하지 않는다.

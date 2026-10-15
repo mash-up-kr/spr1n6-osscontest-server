@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """노드별 역할·상태·Lag·VIP 표. status 명령과 H-6 의 조회 화면이다."""
 from __future__ import annotations
 

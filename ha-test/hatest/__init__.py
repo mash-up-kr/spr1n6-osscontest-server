@@ -1,1 +1,4 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """DB HA 기능테스트(H-1~H-6)를 같은 명령·같은 형식·같은 판정으로 재현하는 시험 도구."""

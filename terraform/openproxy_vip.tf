@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 # OpenProxy VIP (10.40.1.100) between db-02 and db-03.
 # VRRP decides the owner; OpenProxy's pre_promote_script / pre_demote_script on the
 # nodes move the secondary private IP between the two ENIs with the AWS API.

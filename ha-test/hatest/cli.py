@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """ha-test 명령. status / check / restore / unlock / H-1~H-6 / all 과 --yes · --simulate 를 받는다."""
 from __future__ import annotations
 

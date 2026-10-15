@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 # Patroni passes action, role, cluster name. Run on the DB node, never through OpenProxy.
 set -eu
 

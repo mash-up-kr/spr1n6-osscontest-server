@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 output "instance_ids" { value = { for k, v in aws_instance.db : k => v.id } }
 output "private_ips" { value = { for k, v in aws_instance.db : k => v.private_ip } }
 output "public_ips" { value = { for k, v in aws_eip.db : k => v.public_ip } }

@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """측정·판정 로직. 고정 입력으로 값을 확인한다. 각 단언이 깨지면 무엇이 틀린 것인지 이름에 적는다."""
 import unittest
 

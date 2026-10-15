@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """H-2 에서 server 를 부른다. 웹 검색(REST), MCP 검색(Streamable HTTP), 문서 업로드(쓰기)다.
 
 쿼리가 어느 DB 노드에서 처리됐는지는 server 가 아니라 DB(pg_stat_activity·행 조회)에서 확인한다. 여기서는 요청만 보낸다.

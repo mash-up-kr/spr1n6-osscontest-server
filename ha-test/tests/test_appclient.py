@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """H-2 앱 호출. server 와 같은 규칙으로 답하는 가짜 HTTP 서버를 띄워 요청 형식을 확인한다.
 
 가짜 MCP 는 Streamable HTTP 처럼 initialize 로 세션을 열지 않은 도구 호출을 400 으로 거절하고,

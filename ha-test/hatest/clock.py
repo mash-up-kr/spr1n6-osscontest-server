@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """시각과 표시 형식.
 
 측정값은 서버 시계(chrony 로 3대가 맞춰져 있다)로 재고, 기다림과 시간 제한은 이 모듈의 시계로 잰다.

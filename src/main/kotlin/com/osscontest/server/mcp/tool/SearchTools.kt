@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2026 매쉬업스프링YB
+ * SPDX-License-Identifier: MIT
+ */
+
 package com.osscontest.server.mcp.tool
 
 import com.osscontest.server.common.exception.BusinessException

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 #
 # 지정한 문서의 청크를 배포 DB에서 JSONL로 내려받는다. build_qa_set.py 의 입력이다.
 #

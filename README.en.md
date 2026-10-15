@@ -225,11 +225,15 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 |---|---|
 | Spring Boot | Apache-2.0 |
 | Kotlin | Apache-2.0 |
+| Spring AI | Apache-2.0 |
+| AWS SDK for Java v2 | Apache-2.0 |
+| Flyway (flyway-core, flyway-database-postgresql) | Apache-2.0 |
+| Apache Lucene (Nori) | Apache-2.0 |
+| Jackson | Apache-2.0 |
 | PostgreSQL | PostgreSQL License |
 | PostgreSQL JDBC Driver | BSD-2-Clause |
 | Hibernate ORM | Apache-2.0 |
 | pgvector | PostgreSQL License |
-| Apache Kafka | Apache-2.0 |
-| MinIO | AGPL-3.0 |
+| MinIO | AGPL-3.0 (runs only as a separate container; source is not included or linked. The application communicates through the AWS SDK S3 API) |
 
 Tmax OpenSQL is a commercial TmaxTibero product and is not included in this repository.

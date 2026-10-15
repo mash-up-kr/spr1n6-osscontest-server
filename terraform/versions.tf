@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 terraform {
   required_version = ">= 1.6.0"
   required_providers {

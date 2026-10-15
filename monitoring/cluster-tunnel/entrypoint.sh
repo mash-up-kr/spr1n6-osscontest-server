@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 # 클러스터로 가는 SSH 터널을 열고, 지표로 나오지 않는 상태(VIP 위치·OpenProxy 응답)를 확인하는 node_probe.py 를 띄운다.
 #
 # Patroni·etcd·OpenProxy(6432)·VIP 는 노드 사이에 열린 포트라 db-01 연결 하나로 연다.

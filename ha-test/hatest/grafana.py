@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """노드 모니터링 대시보드(Grafana)와 맞물리는 부분.
 
 시험 사건(장애 주입·새 Leader·쓰기 재개·원복)을 대시보드에 세로선(annotation)으로 남겨, 그래프에서 언제 내려가고

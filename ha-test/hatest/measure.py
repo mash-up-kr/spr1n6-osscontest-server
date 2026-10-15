@@ -1,3 +1,6 @@
+# Copyright (c) 2026 매쉬업스프링YB
+# SPDX-License-Identifier: MIT
+
 """기록에서 측정값을 계산한다. 서버 쪽 시각만 쓰고, 입력이 같으면 결과도 같다."""
 from __future__ import annotations
 
