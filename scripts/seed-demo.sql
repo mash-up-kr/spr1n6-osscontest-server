@@ -7,10 +7,10 @@
 -- 또 만들어야 한다. 필요한 환경에서 필요할 때 실행한다.
 --
 -- 왜 필요한가. 이 프로젝트에는 토큰 발급이 없고, 프론트가 X-User-Id 헤더로 신원을 보낸다
--- (web 저장소 src/data/demoUsers.ts). 그 파일이 사용자 1·2·3 이 서버에 있다고 전제하므로,
+-- (web 저장소 src/data/demoUsers.ts). 그 파일이 사용자 1·2·3·4 가 서버에 있다고 전제하므로,
 -- 이 스크립트를 돌리지 않으면 화면은 떠도 모든 요청이 401 로 실패한다.
 --
--- 여러 번 실행해도 안전하다. 이미 있으면 넘어간다.
+-- 여러 번 실행해도 안전하다. 사용자가 이미 있으면 소속만 이 파일 기준으로 맞춘다.
 
 \set ON_ERROR_STOP on
 
@@ -25,21 +25,25 @@ SELECT set_config('app.encryption_cipher', coalesce(nullif(:'cipher', ''), 'aria
 
 BEGIN;
 
--- 테넌트 3개. 테넌트 간 격리와 테넌트 단위 권한 부여를 보이려면 최소 2개가 필요하고,
--- demoUsers.ts 가 3개를 전제한다.
+-- 테넌트 2개. 테넌트 간 격리와 테넌트 단위 권한 부여를 보이려면 최소 2개가 필요하다.
 INSERT INTO tenant (id, name) VALUES
     (1, '테넌트 A'),
-    (2, '테넌트 B'),
-    (3, '테넌트 C')
+    (2, '테넌트 B')
 ON CONFLICT (id) DO NOTHING;
 
--- 사용자 3명. id 는 demoUsers.ts 의 값과 일치해야 한다. 한 명씩 다른 테넌트에 두어
--- 한쪽에서 올린 문서가 다른 쪽 검색 결과에 나오지 않는 것을 보일 수 있게 한다.
+-- 사용자 4명. id 와 소속은 demoUsers.ts 의 값과 일치해야 한다. 1·2·3 을 같은 테넌트에 두어
+-- 같은 소속 기본 공유와 읽기/쓰기 권한 부여를 보이고, 4 를 다른 테넌트에 두어 한쪽에서 올린
+-- 문서가 다른 쪽에 보이지 않는 것을 보인다.
+--
+-- 예전 시드는 사용자마다 테넌트가 달랐다. 그 시드가 이미 들어간 DB 에서 다시 실행해도 소속이
+-- 바뀌도록 충돌 시 tenant_id 를 덮어쓴다. 이때 옮겨진 사용자가 예전 테넌트에서 올린 문서는
+-- 그 테넌트에 남으므로, 필요하면 따로 지운다.
 INSERT INTO app_user (id, tenant_id, email, name) VALUES
     (1, 1, 'user-a@example.com', app_encrypt('사용자 A'::bytea)),
-    (2, 2, 'user-b@example.com', app_encrypt('사용자 B'::bytea)),
-    (3, 3, 'user-c@example.com', app_encrypt('사용자 C'::bytea))
-ON CONFLICT (id) DO NOTHING;
+    (2, 1, 'user-b@example.com', app_encrypt('사용자 B'::bytea)),
+    (3, 1, 'user-c@example.com', app_encrypt('사용자 C'::bytea)),
+    (4, 2, 'user-d@example.com', app_encrypt('사용자 D'::bytea))
+ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
 
 -- id 를 직접 지정해 넣었으므로 시퀀스를 따라 올린다. 이 줄이 없으면 이후 애플리케이션이
 -- 만드는 첫 사용자가 id 1 을 받으려 하고 기본키 충돌로 실패한다.
