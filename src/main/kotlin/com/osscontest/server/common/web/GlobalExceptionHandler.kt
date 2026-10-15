@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.context.request.WebRequest
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
+import java.sql.SQLException
+import java.sql.SQLTransientConnectionException
 
 /**
  * 예외를 code · message · traceId 형식의 응답으로 변환.
@@ -21,6 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * - BusinessException: ErrorCode 가 정한 상태
  * - 본문 검증 실패와 파라미터 제약 위반: 400 과 위반한 항목 이름
  * - 스프링 MVC 예외: 404 · 405 · 415 등 MVC 계약 보존
+ * - DB 장애 전환 중 연결 실패: 503 과 Retry-After
  * - 예상치 못한 예외: 500
  */
 @RestControllerAdvice
@@ -35,6 +38,12 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpectedException(e: Exception): ResponseEntity<ErrorResponse> {
+        if (isDbUnavailable(e)) {
+            log.warn("DB 에 일시적으로 접근할 수 없음", e)
+            return ResponseEntity.status(ErrorCode.DB_UNAVAILABLE.status)
+                .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER_SECONDS.toString())
+                .body(errorResponse(ErrorCode.DB_UNAVAILABLE.name, ErrorCode.DB_UNAVAILABLE.message))
+        }
         log.error("처리하지 못한 예외", e)
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.status)
             .body(errorResponse(ErrorCode.INTERNAL_ERROR.name, ErrorCode.INTERNAL_ERROR.message))
@@ -90,4 +99,24 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun errorResponse(code: String, message: String) =
         ErrorResponse(code = code, message = message, traceId = TraceId.current())
+
+    // 같은 DB 오류도 JPA·JdbcTemplate·Hibernate 가 각기 다른 예외로 감싸므로 원인 체인의 SQLException 으로 판단한다.
+    private fun isDbUnavailable(e: Throwable): Boolean =
+        generateSequence(e) { it.cause }.take(MAX_CAUSE_DEPTH).any { cause ->
+            cause is SQLTransientConnectionException ||
+                (cause is SQLException && cause.sqlState?.let(::isUnavailableSqlState) == true)
+        }
+
+    private fun isUnavailableSqlState(sqlState: String): Boolean =
+        sqlState.startsWith(CONNECTION_EXCEPTION_CLASS) || sqlState in UNAVAILABLE_SQL_STATES
+
+    private companion object {
+        // 장애 전환이 얼마나 걸릴지 서버는 모르므로 고정값이다. 다시 확인할 간격일 뿐이다.
+        const val RETRY_AFTER_SECONDS = 5
+        const val MAX_CAUSE_DEPTH = 10
+        const val CONNECTION_EXCEPTION_CLASS = "08"
+
+        // 58000: OpenProxy AllServersDown, 25006: Replica 로 내려간 옛 Primary 에 쓰기, 57P01~57P03: 서버 종료·기동 중
+        val UNAVAILABLE_SQL_STATES = setOf("58000", "25006", "57P01", "57P02", "57P03")
+    }
 }
