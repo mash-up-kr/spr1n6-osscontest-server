@@ -1,5 +1,6 @@
 package com.osscontest.server.document.service
 
+import com.osscontest.server.document.api.IndexingDetail
 import com.osscontest.server.document.domain.DocumentVersion
 import com.osscontest.server.document.domain.IndexingStatus
 
@@ -15,4 +16,9 @@ interface IndexingStatusReader {
 
     /** 버전 수와 무관하게 Job 을 한 번만 조회한다. Job 이 없는 버전은 결과에 없다. */
     fun statusByVersionId(versionIds: Collection<Long>): Map<Long?, IndexingStatus>
+
+    fun detailOf(version: DocumentVersion): IndexingDetail
+
+    /** 버전 수와 무관하게 Job 을 한 번만 조회한다. 모든 버전이 결과에 있고, Job 이 없는 버전은 PENDING 이다. */
+    fun detailByVersionId(versions: Collection<DocumentVersion>): Map<Long?, IndexingDetail>
 }

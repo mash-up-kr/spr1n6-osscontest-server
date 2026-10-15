@@ -205,7 +205,9 @@ GET /api/v1/documents
       "latestEmbeddingVersionNo": 2,
       "searchableVersionNo": 2,
       "latestVersionIndexingStatus": "PROCESSING",
-      "createdAt": "2026-07-02T01:30:00Z"
+      "createdAt": "2026-07-02T01:30:00Z",
+      "effectivePermission": "WRITE",
+      "ownerPrincipalId": "7"
     }
   ],
   "nextCursor": "eyJpZCI6MjJ9"
@@ -228,11 +230,18 @@ GET /api/v1/documents/{documentId}
   "latestEmbeddingVersionNo": 2,
   "searchableVersionNo": 2,
   "latestVersionIndexingStatus": "PROCESSING",
-  "createdAt": "2026-07-02T01:30:00Z"
+  "createdAt": "2026-07-02T01:30:00Z",
+  "effectivePermission": "WRITE",
+  "ownerPrincipalId": "7"
 }
 ```
 
 If `searchableVersionNo` is `null`, the document is not yet searchable.
+
+`effectivePermission` is the requester's effective permission (`READ`, `WRITE`, or `ADMIN`). The owner
+gets `ADMIN`; otherwise it is the highest permission granted to the requester or the requester's tenant.
+`ownerPrincipalId` is the owner's user id. Each item in the document list has the same fields. The MCP
+tools (`list_documents`, `get_document`) do not return these two fields.
 
 `404`
 
@@ -323,9 +332,17 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2481920,
       "uploadedAt": "2026-08-15T04:12:09Z",
+      "duplicateOfVersionNo": null,
       "indexing": {
-        "status": "PROCESSING",
-        "attemptCount": 1
+        "status": "RETRY_WAIT",
+        "phase": "EMBEDDING",
+        "attemptCount": 2,
+        "chunkCount": null,
+        "startedAt": "2026-08-15T04:12:11Z",
+        "completedAt": null,
+        "lastErrorMessage": "임베딩 응답이 없습니다",
+        "nextRetryAt": "2026-08-15T04:17:11Z",
+        "lastErrorCode": "EMBEDDING_TIMEOUT"
       },
       "searchable": false
     },
@@ -335,9 +352,17 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2390144,
       "uploadedAt": "2026-08-10T02:00:00Z",
+      "duplicateOfVersionNo": 1,
       "indexing": {
         "status": "COMPLETED",
-        "chunkCount": 178
+        "phase": null,
+        "attemptCount": 1,
+        "chunkCount": 178,
+        "startedAt": "2026-08-10T02:00:03Z",
+        "completedAt": "2026-08-10T02:01:10Z",
+        "lastErrorMessage": null,
+        "nextRetryAt": null,
+        "lastErrorCode": null
       },
       "searchable": true
     }
@@ -346,7 +371,10 @@ GET /api/v1/documents/{documentId}/versions
 }
 ```
 
-The `indexing` field of each item follows the same convention as the progress lookup.
+The `indexing` field of each item has the same fields and conventions as the progress lookup (without
+`versionNo`). `duplicateOfVersionNo` is the earliest version in the same document with identical content,
+and is `null` when the version itself is the earliest. It means the same as the field in the upload
+response.
 
 `404`
 

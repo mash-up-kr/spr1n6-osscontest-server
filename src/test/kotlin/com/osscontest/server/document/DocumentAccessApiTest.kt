@@ -134,6 +134,46 @@ class DocumentAccessApiTest {
     }
 
     @Test
+    fun `소유자는 문서 상세에서 ADMIN 실효 권한과 소유자 id 를 받는다`() {
+        getDocument(owner).andExpect {
+            status { isOk() }
+            jsonPath("$.effectivePermission") { value("ADMIN") }
+            jsonPath("$.ownerPrincipalId") { value(owner.id.toString()) }
+        }
+    }
+
+    @Test
+    fun `테넌트 READ 와 사용자 WRITE 를 함께 받으면 실효 권한은 WRITE 다`() {
+        grantToTenant(Permission.READ)
+        grantToUser(member, Permission.WRITE)
+
+        getDocument(member).andExpect {
+            status { isOk() }
+            jsonPath("$.effectivePermission") { value("WRITE") }
+            jsonPath("$.ownerPrincipalId") { value(owner.id.toString()) }
+        }
+    }
+
+    @Test
+    fun `문서 목록은 항목마다 요청자의 실효 권한과 소유자 id 를 보여 준다`() {
+        grantToUser(member, Permission.READ)
+        val ownDocument = Document(tenant = tenant, ownerPrincipalId = member.id.toString(), title = "내 문서")
+            .also { em.persist(it) }
+        em.flush()
+
+        mockMvc.get("/api/v1/documents") {
+            header(USER_ID_HEADER, member.id.toString())
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(2) }
+            jsonPath("$.items[?(@.id == ${ownDocument.id})].effectivePermission") { value("ADMIN") }
+            jsonPath("$.items[?(@.id == ${ownDocument.id})].ownerPrincipalId") { value(member.id.toString()) }
+            jsonPath("$.items[?(@.id == ${document.id})].effectivePermission") { value("READ") }
+            jsonPath("$.items[?(@.id == ${document.id})].ownerPrincipalId") { value(owner.id.toString()) }
+        }
+    }
+
+    @Test
     fun `권한이 없으면 같은 테넌트여도 조회하지 못한다`() {
         getDocument(member).andExpect {
             status { isForbidden() }

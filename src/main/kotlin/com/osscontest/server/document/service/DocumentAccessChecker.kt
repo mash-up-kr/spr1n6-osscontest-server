@@ -48,6 +48,29 @@ class DocumentAccessChecker(
         ).maxByOrNull { it.level }
     }
 
+    /**
+     * [effectivePermission] 과 같은 규칙을 여러 문서에 적용한다. 문서 수와 무관하게 한 번 조회한다.
+     * 권한이 없는 문서는 결과에 없다.
+     */
+    fun effectivePermissions(authContext: AuthContext, documents: Collection<Document>): Map<Long, Permission> {
+        val userPrincipalId = authContext.userId.toString()
+        val (owned, others) = documents.partition { it.ownerPrincipalId == userPrincipalId }
+        val granted = if (others.isEmpty()) {
+            emptyMap()
+        } else {
+            documentAccessScopeRepository.findGrantedPermissionsByDocumentIds(
+                documentIds = others.map { it.id!! },
+                tenantId = authContext.tenantId,
+                tenantPrincipalId = authContext.tenantId.toString(),
+                userPrincipalId = userPrincipalId,
+            )
+                .groupBy { it.documentId }
+                .mapValues { (_, grants) -> grants.maxBy { it.permission.level }.permission }
+        }
+
+        return granted + owned.associate { it.id!! to Permission.ADMIN }
+    }
+
     private fun require(authContext: AuthContext, document: Document, required: Permission): Document {
         val granted = effectivePermission(authContext, document)
         if (granted == null || !granted.satisfies(required)) {

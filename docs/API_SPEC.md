@@ -200,7 +200,9 @@ GET /api/v1/documents
       "latestEmbeddingVersionNo": 2,
       "searchableVersionNo": 2,
       "latestVersionIndexingStatus": "PROCESSING",
-      "createdAt": "2026-07-02T01:30:00Z"
+      "createdAt": "2026-07-02T01:30:00Z",
+      "effectivePermission": "WRITE",
+      "ownerPrincipalId": "7"
     }
   ],
   "nextCursor": "eyJpZCI6MjJ9"
@@ -223,11 +225,17 @@ GET /api/v1/documents/{documentId}
   "latestEmbeddingVersionNo": 2,
   "searchableVersionNo": 2,
   "latestVersionIndexingStatus": "PROCESSING",
-  "createdAt": "2026-07-02T01:30:00Z"
+  "createdAt": "2026-07-02T01:30:00Z",
+  "effectivePermission": "WRITE",
+  "ownerPrincipalId": "7"
 }
 ```
 
 `searchableVersionNo`가 `null`이면 아직 검색되지 않는 문서다.
+
+`effectivePermission`은 요청자의 실효 권한(`READ`·`WRITE`·`ADMIN`)이다. 소유자는 `ADMIN`이고, 그 밖에는
+요청자 본인과 요청자 테넌트에 부여된 권한 중 가장 높은 것이다. `ownerPrincipalId`는 소유자의 사용자 id다.
+문서 목록의 각 항목도 같다. MCP 도구(`list_documents`, `get_document`)의 응답에는 두 필드가 없다.
 
 `404`
 
@@ -318,9 +326,17 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2481920,
       "uploadedAt": "2026-08-15T04:12:09Z",
+      "duplicateOfVersionNo": null,
       "indexing": {
-        "status": "PROCESSING",
-        "attemptCount": 1
+        "status": "RETRY_WAIT",
+        "phase": "EMBEDDING",
+        "attemptCount": 2,
+        "chunkCount": null,
+        "startedAt": "2026-08-15T04:12:11Z",
+        "completedAt": null,
+        "lastErrorMessage": "임베딩 응답이 없습니다",
+        "nextRetryAt": "2026-08-15T04:17:11Z",
+        "lastErrorCode": "EMBEDDING_TIMEOUT"
       },
       "searchable": false
     },
@@ -330,9 +346,17 @@ GET /api/v1/documents/{documentId}/versions
       "mimeType": "application/pdf",
       "fileSize": 2390144,
       "uploadedAt": "2026-08-10T02:00:00Z",
+      "duplicateOfVersionNo": 1,
       "indexing": {
         "status": "COMPLETED",
-        "chunkCount": 178
+        "phase": null,
+        "attemptCount": 1,
+        "chunkCount": 178,
+        "startedAt": "2026-08-10T02:00:03Z",
+        "completedAt": "2026-08-10T02:01:10Z",
+        "lastErrorMessage": null,
+        "nextRetryAt": null,
+        "lastErrorCode": null
       },
       "searchable": true
     }
@@ -341,7 +365,9 @@ GET /api/v1/documents/{documentId}/versions
 }
 ```
 
-각 항목의 `indexing`은 진행 상태 조회와 같은 기준이다.
+각 항목의 `indexing`은 진행 상태 조회와 같은 필드와 기준이다(`versionNo` 제외).
+`duplicateOfVersionNo`는 같은 문서에서 내용이 같은 가장 이른 버전 번호이며, 그 버전 자신이 가장 이르면 `null`이다.
+업로드 응답의 같은 필드와 의미가 같다.
 
 `404`
 

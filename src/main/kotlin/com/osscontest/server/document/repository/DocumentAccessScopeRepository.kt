@@ -37,4 +37,26 @@ interface DocumentAccessScopeRepository : JpaRepository<DocumentAccessScope, Lon
         tenantPrincipalId: String,
         userPrincipalId: String,
     ): List<Permission>
+
+    /** [findGrantedPermissions] 의 조건을 여러 문서에 한 번에 적용한다. */
+    @Query(
+        """
+        SELECT s.document.id AS documentId, s.permission AS permission
+        FROM DocumentAccessScope s
+        WHERE s.document.id IN :documentIds
+          AND s.tenantId = :tenantId
+          AND (
+              (s.principalType = com.osscontest.server.document.domain.PrincipalType.USER
+                  AND s.principalId = :userPrincipalId)
+              OR (s.principalType = com.osscontest.server.document.domain.PrincipalType.TENANT
+                  AND s.principalId = :tenantPrincipalId)
+          )
+        """,
+    )
+    fun findGrantedPermissionsByDocumentIds(
+        documentIds: Collection<Long>,
+        tenantId: Long,
+        tenantPrincipalId: String,
+        userPrincipalId: String,
+    ): List<DocumentPermissionGrant>
 }

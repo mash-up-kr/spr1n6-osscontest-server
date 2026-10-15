@@ -44,15 +44,15 @@ class DocumentController(
     fun listDocuments(
         authContext: AuthContext,
         @Valid @ModelAttribute request: ListDocumentsRequest,
-    ): PageResponse<DocumentSummary> =
-        documentService.listDocuments(authContext, request)
+    ): PageResponse<DocumentResponse> =
+        documentService.listDocumentsWithAccess(authContext, request)
 
     @GetMapping("/{documentId}")
     fun getDocument(
         authContext: AuthContext,
         @PathVariable documentId: Long,
-    ): DocumentSummary =
-        documentService.getDocument(authContext, documentId)
+    ): DocumentResponse =
+        documentService.getDocumentWithAccess(authContext, documentId)
 
     @PatchMapping("/{documentId}")
     fun updateTitle(
