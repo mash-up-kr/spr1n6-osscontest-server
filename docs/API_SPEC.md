@@ -86,6 +86,7 @@ GET /api/v1/documents?limit=20&cursor=eyJpZCI6NDJ9
 | `415` | 지원하지 않는 형식                          |
 | `500` | 서버 내부 오류                            |
 | `502` | 임베딩 등 외부 연동 실패                      |
+| `503` | DB 장애 전환 중이라 일시적으로 처리 불가. `Retry-After`(초) 뒤 다시 시도 |
 
 응답의 `code`는 다음 중 하나다. 클라이언트는 상태 코드가 아니라 이 값으로 분기한다.
 
@@ -107,6 +108,7 @@ GET /api/v1/documents?limit=20&cursor=eyJpZCI6NDJ9
 | `UNSUPPORTED_FILE_TYPE`            | `415` | 지원하지 않는 파일 형식                     |
 | `INTERNAL_ERROR`                   | `500` | 서버 오류                             |
 | `UPSTREAM_ERROR`                   | `502` | 검색어 처리 중 오류                       |
+| `DB_UNAVAILABLE`                   | `503` | 일시적으로 처리 불가. 쓰기 요청은 반영됐을 수 있음 |
 
 ---
 

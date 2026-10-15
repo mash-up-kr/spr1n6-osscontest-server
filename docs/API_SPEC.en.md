@@ -89,6 +89,7 @@ If `nextCursor` is `null`, it is the last page.
 | `415`  | Unsupported format                                              |
 | `500`  | Internal server error                                           |
 | `502`  | An external integration failure, such as embedding              |
+| `503`  | Temporarily unavailable during a DB failover. Retry after `Retry-After` seconds |
 
 The response `code` is always one of the following. The client should branch on this value, not the
 status code.
@@ -111,6 +112,7 @@ status code.
 | `UNSUPPORTED_FILE_TYPE`            | `415` | Unsupported file format                                    |
 | `INTERNAL_ERROR`                   | `500` | A server error occurred                                    |
 | `UPSTREAM_ERROR`                   | `502` | An error occurred while processing the search query        |
+| `DB_UNAVAILABLE`                   | `503` | Temporarily unavailable. A write request may have been applied |
 
 ---
 

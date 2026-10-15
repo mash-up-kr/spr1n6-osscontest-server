@@ -22,7 +22,8 @@ class WebConfig(
             .allowedOrigins(*allowedOrigins.toTypedArray())
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("X-User-Id", "Content-Type")
-            .exposedHeaders("Content-Disposition")
+            // CORS 기본 허용 헤더가 아니면 브라우저가 스크립트에 넘기지 않는다. Retry-After 는 503 재시도 간격이다.
+            .exposedHeaders("Content-Disposition", "Retry-After")
             // 프리플라이트 캐시. 크롬은 이 값과 무관하게 600초로 자른다.
             .maxAge(3600)
     }
