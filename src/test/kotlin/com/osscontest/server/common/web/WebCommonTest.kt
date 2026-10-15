@@ -107,4 +107,17 @@ class WebCommonTest {
                 }
         }
     }
+
+    @Test
+    fun `다른 출처의 웹이 Retry-After 를 읽을 수 있게 노출한다`() {
+        mockMvc.get("/api/v1/documents") { header(HttpHeaders.ORIGIN, "http://localhost:5173") }
+            .andExpect {
+                header {
+                    string(
+                        HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                        org.hamcrest.Matchers.containsString(HttpHeaders.RETRY_AFTER),
+                    )
+                }
+            }
+    }
 }
