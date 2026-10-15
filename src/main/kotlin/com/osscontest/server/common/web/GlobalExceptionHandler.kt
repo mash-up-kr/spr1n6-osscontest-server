@@ -108,13 +108,17 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
         }
 
     private fun isUnavailableSqlState(sqlState: String): Boolean =
-        sqlState.startsWith(CONNECTION_EXCEPTION_CLASS) || sqlState in UNAVAILABLE_SQL_STATES
+        (sqlState.startsWith(CONNECTION_EXCEPTION_CLASS) && sqlState != PROTOCOL_VIOLATION) ||
+            sqlState in UNAVAILABLE_SQL_STATES
 
     private companion object {
         // 장애 전환이 얼마나 걸릴지 서버는 모르므로 고정값이다. 다시 확인할 간격일 뿐이다.
         const val RETRY_AFTER_SECONDS = 5
         const val MAX_CAUSE_DEPTH = 10
         const val CONNECTION_EXCEPTION_CLASS = "08"
+
+        // 08 계열이지만 연결 장애가 아니라 드라이버·프록시 버그 신호라 500 으로 둔다.
+        const val PROTOCOL_VIOLATION = "08P01"
 
         // 58000: OpenProxy AllServersDown, 25006: Replica 로 내려간 옛 Primary 에 쓰기, 57P01~57P03: 서버 종료·기동 중
         val UNAVAILABLE_SQL_STATES = setOf("58000", "25006", "57P01", "57P02", "57P03")

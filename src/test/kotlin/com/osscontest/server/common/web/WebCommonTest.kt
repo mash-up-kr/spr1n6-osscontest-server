@@ -98,11 +98,13 @@ class WebCommonTest {
 
     @Test
     fun `장애 전환과 무관한 DB 오류는 500 이다`() {
-        mockMvc.get("/test/db-error") { param("sqlState", "23505") }
-            .andExpect {
-                status { isInternalServerError() }
-                header { doesNotExist(HttpHeaders.RETRY_AFTER) }
-                jsonPath("$.code") { value("INTERNAL_ERROR") }
-            }
+        listOf("23505", "08P01").forEach { sqlState ->
+            mockMvc.get("/test/db-error") { param("sqlState", sqlState) }
+                .andExpect {
+                    status { isInternalServerError() }
+                    header { doesNotExist(HttpHeaders.RETRY_AFTER) }
+                    jsonPath("$.code") { value("INTERNAL_ERROR") }
+                }
+        }
     }
 }
