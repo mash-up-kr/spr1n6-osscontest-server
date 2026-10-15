@@ -30,8 +30,7 @@
 - **The allowed format is determined by the file extension.** HWP has no standard MIME type, so the
   value clients send is inconsistent. The value stored in `mime_type` is the one determined from the
   extension.
-- **The reindexing Outbox row is INSERTed directly by the API server.** It is published with a new
-  `source_event_id`, and the original event is placed in `retry_of_event_id`.
+- **The reindexing job is enqueued directly by the API server.**
 - **Reindexing is allowed only for a version whose embedding failed.** Otherwise it returns `409`.
 - **Re-uploading the same file still creates a new version.** This is signaled via
   `duplicateOfVersionNo` in the response.
@@ -453,8 +452,8 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
 }
 ```
 
-This is the `indexing_job` row corresponding to the version's most recent `outbox_event`. If the
-worker has not yet consumed that event, `status` is `PENDING`.
+This is the version's most recent `indexing_job` row. If the worker has not yet picked up that job,
+`status` is `PENDING`.
 `phase` is the current processing stage recorded by the worker, and is `null` if the job hasn't been
 created yet or the stage hasn't been recorded.
 `nextRetryAt` is when the worker will retry while the status is `RETRY_WAIT`, and is `null` in any

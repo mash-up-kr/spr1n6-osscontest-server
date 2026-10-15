@@ -28,8 +28,7 @@
   형식이 다르면 `415` 이다.
 - **허용 형식은 확장자로 판정한다.** HWP 는 표준 MIME 이 없어 클라이언트가 보내는 값이
   일정하지 않다. `mime_type` 에는 확장자로 정한 값을 저장한다.
-- **재인덱싱 Outbox 행은 API 서버가 직접 INSERT 한다.** 새 `source_event_id`로 발행하고
-  `retry_of_event_id`에 원본 이벤트를 넣는다.
+- **재인덱싱 Job 은 API 서버가 직접 등록한다.**
 - **재인덱싱은 임베딩이 실패한 버전에만 허용한다.** 그 외에는 `409`이다.
 - **같은 파일을 다시 올려도 버전을 만든다.** 응답의 `duplicateOfVersionNo`로 알린다.
 - **다른 테넌트의 문서는 `404`이다.** 존재 자체를 노출하지 않는다.
@@ -445,8 +444,8 @@ GET /api/v1/documents/{documentId}/versions/{versionNo}/indexing
 }
 ```
 
-해당 버전의 가장 최근 `outbox_event`에 대응하는 `indexing_job` 행이다. 워커가 아직 그 이벤트를
-소비하지 않았으면 `status`는 `PENDING`이다.
+해당 버전의 가장 최근 `indexing_job` 행이다. 워커가 아직 그 Job 을 가져가지 않았으면 `status`는
+`PENDING`이다.
 `phase`는 워커가 기록한 현재 처리 단계이며, 잡 생성 전이거나 단계가 기록되지 않았으면 `null`이다.
 `nextRetryAt`은 `RETRY_WAIT`일 때 워커가 다시 시도할 시각이며, 그 밖의 상태에서는 `null`이다.
 `lastErrorCode`는 워커가 마지막 실패에 남긴 오류 코드다. `lastErrorMessage`와 함께 채워지며, 두 값 모두

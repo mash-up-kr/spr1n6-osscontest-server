@@ -4,7 +4,7 @@
 
 ## Purpose of this document
 
-This project was built as several parts — API server, relay, worker, search — each implemented independently. Each part uses a different language and framework, but **the reader reads it as one project.** If the way code reads differs from part to part, the whole thing feels scattered.
+This project was built as several parts — API server, worker, search — each implemented independently. Each part uses a different language and framework, but **the reader reads it as one project.** If the way code reads differs from part to part, the whole thing feels scattered.
 
 So this document doesn't contain framework-specific rules — only **standards that any part can follow.** There are three criteria:
 

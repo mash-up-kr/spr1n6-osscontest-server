@@ -29,20 +29,18 @@ PDF·DOCX·Markdown·HWP·TXT의 5가지 확장자를 허용하며, 같은 문�
 
 <br>
 
-시스템을 구성하는 소스 코드 저장소는 총 4개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
+시스템을 구성하는 소스 코드 저장소는 총 3개입니다. 업로드한 문서는 아래의 과정을 통해 최종 검색 가능한 상태가 됩니다.
 
 ```mermaid
 flowchart LR
     web[web] -->|업로드| server[server]
-    server -->|Outbox| relay[relay]
-    relay -->|Kafka| worker[worker]
+    server -->|인덱싱 Job| worker[worker]
     worker -->|청크·임베딩 저장| server
 ```
 
 | 저장소 | 역할 |
 |---|---|
-| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 Outbox 이벤트를 남깁니다 |
-| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Outbox 행을 읽어 카프카로 발행합니다 |
+| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API 서버. 업로드·권한·검색을 담당하고 인덱싱 Job 을 등록합니다 |
 | [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | 문서를 청크로 나누고 임베딩해 저장합니다 |
 | [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
 
@@ -64,10 +62,10 @@ flowchart LR
 
 ### 유실 없는 비동기 인덱싱
 
-업로드 응답은 인덱싱을 기다리지 않습니다. 대신 문서를 저장하는 트랜잭션과 **같은 원자 단위로** 인덱싱 요청 이벤트를 남깁니다.
-이 이벤트는 DB 트리거가 만듭니다. 애플리케이션이 발행을 빠뜨릴 수 없고, 저장이 롤백되면 이벤트도 함께 사라집니다.
+업로드 응답은 인덱싱을 기다리지 않습니다. 대신 문서를 저장하는 트랜잭션과 **같은 원자 단위로** 인덱싱 Job 을 등록합니다.
+이 Job 은 DB 트리거가 만듭니다. 애플리케이션이 등록을 빠뜨릴 수 없고, 저장이 롤백되면 Job 도 함께 사라집니다.
 
-남은 이벤트는 릴레이가 카프카로 옮기고 워커가 받아 처리합니다. **처리에 실패한 작업은 간격을 두고 스스로 재시도**합니다. 진행 상태를 UI에서 준실시간으로 확인할 수 있고, 자동 재시도로도 복구되지 않은 작업은 버튼으로 직접 재시도를 요청할 수 있습니다.
+등록된 Job 은 워커가 가져가 처리합니다. **처리에 실패한 작업은 간격을 두고 스스로 재시도**합니다. 진행 상태를 UI에서 준실시간으로 확인할 수 있고, 자동 재시도로도 복구되지 않은 작업은 버튼으로 직접 재시도를 요청할 수 있습니다.
 
 ![문서 목록 화면](docs/images/documents.png)
 
