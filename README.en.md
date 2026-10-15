@@ -28,20 +28,18 @@ Five file types are accepted — PDF, DOCX, Markdown, HWP, TXT — and re-upload
 
 <br>
 
-The system spans four source repositories. An uploaded document becomes searchable through the path below.
+The system spans three source repositories. An uploaded document becomes searchable through the path below.
 
 ```mermaid
 flowchart LR
     web[web] -->|upload| server[server]
-    server -->|Outbox| relay[relay]
-    relay -->|Kafka| worker[worker]
+    server -->|Indexing job| worker[worker]
     worker -->|chunks + embeddings| server
 ```
 
 | Repository | Role |
 |---|---|
-| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API server. Handles upload, permissions, and search, and records Outbox events |
-| [relay](https://github.com/mash-up-kr/spr1n6-osscontest-relay) | Reads Outbox rows and publishes them to Kafka |
+| [server](https://github.com/mash-up-kr/spr1n6-osscontest-server) | API server. Handles upload, permissions, and search, and enqueues indexing jobs |
 | [worker](https://github.com/mash-up-kr/spr1n6-osscontest-worker) | Splits documents into chunks, embeds them, and stores the result |
 | [web](https://github.com/mash-up-kr/spr1n6-osscontest-web) | React SPA |
 
@@ -63,10 +61,10 @@ The design and evaluation are written up in [Search design and evaluation](docs/
 
 ### Indexing that loses nothing
 
-The upload response does not wait for indexing. Instead, the indexing request event is written **in the same atomic unit** as the transaction that stores the document.
-A database trigger creates that event, so the application cannot forget to publish it, and if the write rolls back the event disappears with it.
+The upload response does not wait for indexing. Instead, an indexing job is enqueued **in the same atomic unit** as the transaction that stores the document.
+A database trigger creates that job, so the application cannot forget to enqueue it, and if the write rolls back the job disappears with it.
 
-From there the relay moves the event to Kafka and the worker picks it up. **Jobs that fail are retried automatically with a backoff.** Progress is visible in the UI in near real time, and a job that automatic retries could not recover can be retried by hand from a button.
+The worker then picks up the enqueued job. **Jobs that fail are retried automatically with a backoff.** Progress is visible in the UI in near real time, and a job that automatic retries could not recover can be retried by hand from a button.
 
 ![Document list screen](docs/images/documents.png)
 

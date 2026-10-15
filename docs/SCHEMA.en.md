@@ -4,12 +4,12 @@
 
 | Item              | Value                                               |
 |-------------------|-------------------------------------------------|
-| Base migration    | `V20260825_001__add_document_chunk_content_tokens.sql` |
-| Last updated      | 2026-08-26                                      |
+| Base migration    | `V20261015_001__notify_indexing_jobs.sql`        |
+| Last updated      | 2026-10-15                                      |
 | Target DB         | PostgreSQL 17.8 (local) / Tmax OpenSQL v3.0 (dev) |
 
-The schema is owned by the API server repository; the relay and worker read and write it without running migrations.
-State transitions were written by cross-checking the code of all three repositories — server `5d35737`, relay `d83e82d`, worker `029527c`.
+The schema is owned by the API server repository; the worker reads and writes it without running migrations.
+State transitions were written by cross-checking the code of both repositories — server `ba08e4a`, worker `897b004`.
 
 ---
 
@@ -22,11 +22,11 @@ erDiagram
     document ||--o{ document_version : ""
     document ||--o| document_version : "searchable_version_id"
     document ||--o{ document_access_scope : ""
-    document ||--o{ outbox_event : ""
-    document_version ||--o{ outbox_event : "INDEXING_REQUESTED"
-    document_version ||--o{ indexing_job : ""
+    document ||--o{ indexing_job : ""
+    document_version ||--o{ indexing_job : "INDEX"
     document_version ||--o{ document_chunk : ""
-    document ||--o{ document_chunk : "tenant_id denormalized"
+    document ||--o{ document_chunk : "denormalized tenant_id"
+    external_circuit_breaker ||--o{ external_circuit_result : ""
 
     tenant {
         bigint id PK
@@ -50,6 +50,7 @@ erDiagram
         bigint latest_upload_version_no
         bigint latest_embedding_version_no
         bigint searchable_version_id FK
+        bigint execution_epoch
         timestamptz deleted_at
         timestamptz purged_at
         timestamptz created_at
@@ -105,39 +106,21 @@ erDiagram
         timestamptz created_at
     }
 
-    outbox_event {
-        uuid id PK
-        bigint tenant_id FK
-        bigint document_id FK
-        bigint document_version_id FK
-        uuid retry_of_event_id
-        varchar event_type
-        int event_schema_version
-        jsonb payload
-        varchar trace_id
-        varchar status
-        int publish_attempt_count
-        timestamptz next_attempt_at
-        varchar locked_by
-        timestamptz locked_at
-        timestamptz published_at
-        text last_error_message
-        timestamptz created_at
-    }
-
     indexing_job {
         bigint id PK
         uuid source_event_id UK
         bigint document_id FK
         bigint document_version_id FK
+        varchar job_type
+        bigint enqueue_seq UK
         varchar status
         varchar phase
         int attempt_count
         timestamptz next_retry_at
         varchar worker_id
-        varchar kafka_topic
-        int kafka_partition
-        bigint kafka_offset
+        bigint execution_epoch
+        timestamptz lease_until
+        varchar outcome
         varchar last_error_code
         text last_error_message
         varchar trace_id
@@ -145,6 +128,39 @@ erDiagram
         timestamptz completed_at
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    external_circuit_breaker {
+        varchar name PK
+        varchar state
+        int consecutive_failures
+        timestamptz opened_until
+        bigint generation
+        varchar probe_owner
+        bigint probe_job_id
+        bigint probe_epoch
+        timestamptz probe_reserved_until
+        text probe_call_id
+        timestamptz probe_call_until
+        timestamptz updated_at
+    }
+
+    external_circuit_result {
+        varchar breaker_name PK
+        text call_id PK
+        bigint generation
+        varchar probe_owner
+        varchar outcome
+        boolean applied
+        varchar resulting_state
+        timestamptz created_at
+    }
+
+    indexing_recovery_primary {
+        boolean singleton PK
+        timestamptz postmaster_started_at
+        text wal_timeline
+        timestamptz writable_since
     }
 ```
 
@@ -176,7 +192,7 @@ User. Named `app_user` because `user` is a reserved word in PostgreSQL.
 
 ### 2.3 `document`
 
-Document. Holds a version counter and a deletion timestamp.
+Document. Holds a version counter, a deletion timestamp, and an execution number.
 
 | Column                          | Type             | Constraints                                                   | Description                                          |
 |---------------------------------|------------------|-----------------------------------------------------------------|---------------------------------------------|
@@ -185,10 +201,11 @@ Document. Holds a version counter and a deletion timestamp.
 | `owner_principal_id`            | `VARCHAR(255)`   | `NOT NULL`                                                      |                                             |
 | `title`                         | `VARCHAR(255)`   | `NOT NULL`                                                      |                                             |
 | `latest_upload_version_no`      | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`                                  | The last `version_no` issued. Counter for numbering the next version |
-| `latest_embedding_version_no`   | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`, `<= latest_upload_version_no`   | The most recent `version_no` for which embedding has completed |
-| `searchable_version_id`         | `BIGINT`         | FK → `document_version(id, document_id)`                       | The version used for search. Can only point to a version at or below `latest_embedding_version_no` |
+| `latest_embedding_version_no`   | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`, `<= latest_upload_version_no`   | The most recent `version_no` promoted to searchable. Metadata for responses |
+| `searchable_version_id`         | `BIGINT`         | FK → `document_version(id, document_id)`                       | The version used for search                          |
+| `execution_epoch`               | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`                                  | Per-document execution number. Incremented each time a job of this document is claimed and never reset. Used to reject late writes from a previous worker |
 | `deleted_at`                    | `TIMESTAMPTZ`    |                                                                  | Timestamp when deletion was requested                |
-| `purged_at`                     | `TIMESTAMPTZ`    | value allowed only when `deleted_at IS NOT NULL`                | Timestamp when physical cleanup completed            |
+| `purged_at`                     | `TIMESTAMPTZ`    | value allowed only when `deleted_at IS NOT NULL`                | Timestamp when physical cleanup completed. Nothing writes it currently |
 | `created_at` / `updated_at`     | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                                     |                                             |
 
 ### 2.4 `document_version`
@@ -200,7 +217,7 @@ Upload unit. Each upload of a document is one row.
 | `id`                        | `BIGINT`          | PK, identity, `(id, document_id)` UK                               |                   |
 | `document_id`               | `BIGINT`          | `NOT NULL`, FK → `document(id)`                                    |                   |
 | `version_no`                | `BIGINT`          | `NOT NULL`, `> 0`, `(document_id, version_no)` UK                  | Sequence number within the document |
-| `embedding_version_no`      | `BIGINT`          | `NOT NULL`, `> 0`                                                  | Determines the order for promoting the search version. The API server fills it with the same value as `version_no` |
+| `embedding_version_no`      | `BIGINT`          | `NOT NULL`, `> 0`                                                  | The API server fills it with the same value as `version_no`. Promotion is decided by `version_no` |
 | `source_object_key`         | `VARCHAR(1024)`   | `NOT NULL`                                                         | Object storage key of the original file |
 | `original_filename`         | `BYTEA`           | `NOT NULL`                                                         | Subject to encryption |
 | `mime_type`                 | `VARCHAR(100)`    | `NOT NULL`                                                         |                   |
@@ -208,7 +225,7 @@ Upload unit. Each upload of a document is one row.
 | `content_hash`              | `VARCHAR(128)`    | `NOT NULL`                                                         |                   |
 | `source_metadata`           | `JSONB`           |                                                                     | Metadata received together with the upload |
 | `extracted_metadata`        | `JSONB`           |                                                                     | Metadata generated by AI |
-| `chunk_count`                | `INTEGER`         | `NULL` or `>= 0`                                                   | Filled in by the worker at the publish stage |
+| `chunk_count`                | `INTEGER`         | `NULL` or `>= 0`                                                   | Filled in by the worker when processing completes |
 | `indexed_at`                | `TIMESTAMPTZ`     |                                                                     | Filled in by the worker together with `chunk_count` |
 | `created_by_principal_id`   | `VARCHAR(255)`    | `NOT NULL`                                                         |                   |
 | `created_at`                | `TIMESTAMPTZ`     | `NOT NULL`, defaults to now                                        |                   |
@@ -250,185 +267,207 @@ Document access permissions. Document lookup and search reference only this tabl
 | `granted_by_principal_id`   | `VARCHAR(255)`   | `NOT NULL`                                                              |                                          |
 | `created_at`                | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                                             |                                          |
 
-### 2.7 `outbox_event`
+### 2.7 `indexing_job`
 
-Transactional outbox. The relay server polls it and publishes.
+The indexing job queue and its processing history. The API server and database triggers enqueue jobs; the worker claims and processes them.
 
-| Column                    | Type             | Constraints                                                | Description                                              |
-|---------------------------|------------------|--------------------------------------------------------------|-----------------------------------------------------------|
-| `id`                      | `UUID`           | PK                                                            | Filled in by the trigger via `gen_random_uuid()`           |
-| `tenant_id`               | `BIGINT`         | `NOT NULL`, `(document_id, tenant_id)` FK → `document`        |                                                            |
-| `document_id`             | `BIGINT`         | `NOT NULL`                                                    |                                                            |
-| `document_version_id`     | `BIGINT`         | `(document_version_id, document_id)` FK                       | Has a value for `INDEXING_REQUESTED`; `NULL` for `DOCUMENT_DELETED` |
-| `retry_of_event_id`       | `UUID`           |                                                               | The original event a republish points back to. `NULL` for a new event |
-| `event_type`              | `VARCHAR(50)`    | `NOT NULL`, `INDEXING_REQUESTED` / `DOCUMENT_DELETED`         |                                                            |
-| `event_schema_version`    | `INTEGER`        | `NOT NULL`, default `1`, `> 0`                                |                                                            |
-| `payload`                 | `JSONB`          | `NOT NULL`                                                    |                                                            |
-| `trace_id`                | `VARCHAR(255)`   |                                                               | The value passed via `SET LOCAL app.trace_id` within the transaction |
-| `status`                  | `VARCHAR(20)`    | `NOT NULL`, default `PENDING`                                 | See section 3                                              |
-| `publish_attempt_count`   | `INTEGER`        | `NOT NULL`, default `0`, `>= 0`                               |                                                            |
-| `next_attempt_at`         | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                                   | Eligible for publishing from this time onward. On a `DEAD` row, `'infinity'` means a human has paused it |
-| `locked_by`               | `VARCHAR(255)`   |                                                               | The relay instance that picked up this row                 |
-| `locked_at`               | `TIMESTAMPTZ`    |                                                               | Timestamp when it changed to `PUBLISHING`. Basis for reclaiming rows that died mid-publish |
-| `published_at`            | `TIMESTAMPTZ`    |                                                               |                                                            |
-| `last_error_message`      | `TEXT`           |                                                               |                                                            |
-| `created_at`              | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                                   |                                                            |
+| Column                        | Type             | Constraints                                         | Description                              |
+|-------------------------------|------------------|-----------------------------------------------------|------------------------------------------|
+| `id`                          | `BIGINT`         | PK, identity                                        |                                          |
+| `source_event_id`             | `UUID`           | `NOT NULL`, UK                                      | Filled with `gen_random_uuid()` on enqueue |
+| `document_id`                 | `BIGINT`         | `NOT NULL`, FK → `document(id)`                     |                                          |
+| `document_version_id`         | `BIGINT`         | `(document_version_id, document_id)` FK             | Set for `INDEX`, `NULL` for `DELETE`     |
+| `job_type`                    | `VARCHAR(20)`    | `NOT NULL`, default `INDEX`, `INDEX` / `DELETE`     | `INDEX`: build chunks and embeddings / `DELETE`: clean up chunks of a deleted document |
+| `enqueue_seq`                 | `BIGINT`         | `NOT NULL`, identity, UK                            | Global enqueue order. Used for claim order and to detect an earlier job of the same document. Gaps may occur |
+| `status`                      | `VARCHAR(30)`    | `NOT NULL`, one of the five values in section 3     | See section 3                            |
+| `phase`                       | `VARCHAR(30)`    |                                                     | Current processing stage. `DOWNLOADING` / `PARSING` / `CHUNKING` / `EMBEDDING` |
+| `attempt_count`               | `INTEGER`        | `NOT NULL`, default `0`, `>= 0`                     | Incremented on every claim               |
+| `next_retry_at`               | `TIMESTAMPTZ`    |                                                     | When a `RETRY_WAIT` job becomes claimable again |
+| `worker_id`                   | `VARCHAR(255)`   | set only while `PROCESSING`, otherwise `NULL`       | The worker holding the execution right   |
+| `execution_epoch`             | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`                     | Execution number copied from `document.execution_epoch` on claim. `0` before the first claim |
+| `lease_until`                 | `TIMESTAMPTZ`    | set only while `PROCESSING`, otherwise `NULL`       | When the execution right expires. Extended by heartbeat |
+| `outcome`                     | `VARCHAR(40)`    |                                                     | Reason for the end state. `INDEXED` / `DELETED` / `SKIPPED_DOCUMENT_DELETED` / `RETRY_SCHEDULED` / `FAILED_PROCESSING`. No CHECK because values may grow |
+| `last_error_code`             | `VARCHAR(100)`   |                                                     | Failure code classified by the worker    |
+| `last_error_message`          | `TEXT`           |                                                     |                                          |
+| `trace_id`                    | `VARCHAR(255)`   |                                                     | Value passed via `SET LOCAL app.trace_id` in the transaction |
+| `started_at`                  | `TIMESTAMPTZ`    |                                                     |                                          |
+| `completed_at`                | `TIMESTAMPTZ`    |                                                     |                                          |
+| `created_at` / `updated_at`   | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                         |                                          |
 
-### 2.8 `indexing_job`
+### 2.8 `external_circuit_breaker`
 
-The worker's indexing processing history.
+Circuit breaker state per external API (embedding). Multiple worker instances share the state through the database. The only row today is `embedding-api`.
 
-| Column                        | Type             | Constraints                                            | Description                              |
-|-------------------------------|------------------|-----------------------------------------------------------|---------------------------------|
-| `id`                          | `BIGINT`         | PK, identity                                              |                                 |
-| `source_event_id`             | `UUID`           | `NOT NULL`, UK                                            | The original outbox event. No FK is set (see section 4) |
-| `document_id`                 | `BIGINT`         | `NOT NULL`, `(document_version_id, document_id)` FK       |                                 |
-| `document_version_id`         | `BIGINT`         | `NOT NULL`                                                |                                 |
-| `status`                      | `VARCHAR(30)`    | `NOT NULL`                                                | See section 3                    |
-| `phase`                       | `VARCHAR(30)`    |                                                            | Current processing stage. `DOWNLOADING` / `PARSING` / `CHUNKING` / `EMBEDDING` |
-| `attempt_count`               | `INTEGER`        | `NOT NULL`, default `0`, `>= 0`                           |                                 |
-| `next_retry_at`               | `TIMESTAMPTZ`    |                                                            |                                 |
-| `worker_id`                   | `VARCHAR(255)`   |                                                            |                                 |
-| `kafka_topic`                 | `VARCHAR(255)`   | `NOT NULL`, no blanks allowed                             | The topic of the received Kafka record |
-| `kafka_partition`             | `INTEGER`        | `NOT NULL`, `>= 0`                                        |                                 |
-| `kafka_offset`                | `BIGINT`         | `NOT NULL`, `>= 0`                                        |                                 |
-| `last_error_code`             | `VARCHAR(100)`   |                                                            | The failure code classified by the worker. `MAX_ATTEMPTS_EXCEEDED` / `DOCUMENT_DELETED` are fixed values |
-| `last_error_message`          | `TEXT`           |                                                            |                                 |
-| `trace_id`                    | `VARCHAR(255)`   |                                                            |                                 |
-| `started_at`                  | `TIMESTAMPTZ`    |                                                            |                                 |
-| `completed_at`                | `TIMESTAMPTZ`    |                                                            |                                 |
-| `created_at` / `updated_at`   | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                               |                                 |
+| Column                   | Type             | Constraints                              | Description                                     |
+|--------------------------|------------------|------------------------------------------|-------------------------------------------------|
+| `name`                   | `VARCHAR(50)`    | PK                                       | Breaker name                                    |
+| `state`                  | `VARCHAR(20)`    | `NOT NULL`, default `CLOSED`, `CLOSED` / `OPEN` / `HALF_OPEN` | See section 3                    |
+| `consecutive_failures`   | `INTEGER`        | `NOT NULL`, default `0`, `>= 0`          | Consecutive transient failures. Reset to `0` on success |
+| `opened_until`           | `TIMESTAMPTZ`    | `NOT NULL` when `OPEN`                   | Calls are blocked until this time               |
+| `generation`             | `BIGINT`         | `NOT NULL`, default `0`, `>= 0`          | Incremented on every state change. Used to ignore results from an older generation |
+| `probe_owner`            | `VARCHAR(100)`   | set only when `HALF_OPEN`                | Worker responsible for the probe call           |
+| `probe_job_id`           | `BIGINT`         | set only when `HALF_OPEN`                | Job used for the probe call                     |
+| `probe_epoch`            | `BIGINT`         | set only when `HALF_OPEN`, `>= 0`        | Execution number of that job                    |
+| `probe_reserved_until`   | `TIMESTAMPTZ`    | set only when `HALF_OPEN`                | When the probe reservation expires              |
+| `probe_call_id`          | `TEXT`           | set together with `probe_call_until`     | ID of the probe call in progress                |
+| `probe_call_until`       | `TIMESTAMPTZ`    | set together with `probe_call_id`        | When the probe call in progress expires         |
+| `updated_at`             | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now              |                                                 |
+
+### 2.9 `external_circuit_result`
+
+Record of external API call results. Keyed by `(breaker_name, call_id)` so the same call result is never applied twice.
+
+| Column              | Type             | Constraints                                                  | Description                     |
+|---------------------|------------------|--------------------------------------------------------------|---------------------------------|
+| `breaker_name`      | `VARCHAR(50)`    | PK, FK → `external_circuit_breaker(name)`                    |                                 |
+| `call_id`           | `TEXT`           | PK                                                           | Call ID                         |
+| `generation`        | `BIGINT`         | `NOT NULL`, `>= 0`                                           | Breaker generation at call time |
+| `probe_owner`       | `VARCHAR(100)`   |                                                              |                                 |
+| `outcome`           | `VARCHAR(20)`    | `NOT NULL`, `SUCCESS` / `FAILURE` / `RATE_LIMIT` / `PERMANENT` / `CONFIGURATION` | Call result |
+| `applied`           | `BOOLEAN`        | `NOT NULL`                                                   | Whether it was applied to the breaker state |
+| `resulting_state`   | `VARCHAR(20)`    | `NOT NULL`, `CLOSED` / `OPEN` / `HALF_OPEN`                  | Breaker state after applying    |
+| `created_at`        | `TIMESTAMPTZ`    | `NOT NULL`, defaults to now                                  |                                 |
+
+### 2.10 `indexing_recovery_primary`
+
+Reference point for reclaiming expired jobs. Exactly one row exists. Right after a primary starts or is promoted, the previous primary's leases cannot be trusted, so reclaiming runs only when this row matches the current startup and timeline and 30 seconds have passed (section 7).
+
+| Column                    | Type            | Constraints                          | Description                              |
+|---------------------------|-----------------|--------------------------------------|------------------------------------------|
+| `singleton`               | `BOOLEAN`       | PK, default `TRUE`, only `TRUE` allowed | Limits the table to one row            |
+| `postmaster_started_at`   | `TIMESTAMPTZ`   | `NOT NULL`                           | `pg_postmaster_start_time()` when recorded |
+| `wal_timeline`            | `TEXT`          | `NOT NULL`, 8 hex digits             | WAL timeline when recorded               |
+| `writable_since`          | `TIMESTAMPTZ`   | `NOT NULL`                           | When the node became writable. Basis for the reclaim grace period |
 
 ---
 
 ## 3. Status values
 
-### `outbox_event.status`
-
-The relay repository (`doc-relay`) is what transitions the value. The API server only inserts `PENDING` rows via a trigger.
-
-| Value        | Meaning                                                    |
-|--------------|-------------------------------------------------------------|
-| `PENDING`    | Waiting to be published. Rows where `next_attempt_at <= now()` are eligible to be claimed |
-| `PUBLISHING` | Claimed by the relay and being published. `locked_by` / `locked_at` are filled in together |
-| `PUBLISHED`  | Kafka has acknowledged receipt                                |
-| `DEAD`       | Publishing has stopped. Not a terminal state — only rows paused due to permanent failure are excluded from automatic recovery |
-
-| Transition                          | Trigger                                                                 |
-|--------------------------------------|--------------------------------------------------------------------------|
-| `PENDING` → `PUBLISHING`             | Claimed by the relay (`FOR UPDATE SKIP LOCKED`)                          |
-| `PUBLISHING` → `PUBLISHED`           | Kafka acknowledges receipt                                                |
-| `PUBLISHING` → `PENDING`             | A retryable failure. Increments `publish_attempt_count` and pushes `next_attempt_at` back by the backoff interval |
-| `PUBLISHING` → `DEAD` (accumulated transient failures) | Retry limit reached. `next_attempt_at` is set to a recovery time, so it automatically revives later |
-| `PUBLISHING` → `DEAD` (permanent failure) | A failure whose outcome wouldn't change on retry. Paused after a single attempt by setting `next_attempt_at = 'infinity'` |
-| `PUBLISHING` → `PENDING` (reclaim)   | Rows whose `locked_at` has exceeded the lock timeout. Always goes to `PENDING`, never `DEAD`, even past the retry limit |
-| `DEAD` → `PENDING`                   | The recovery scheduler revives rows where `next_attempt_at <= now()`. The attempt count is reset to `0` |
-| `DEAD` → `PENDING` (manual)          | Manual admin republish. Reverts the same row rather than creating a new one |
-| `PUBLISHED` → `PENDING` (manual)     | Manual admin forced republish. Resends messages that were lost — despite the record saying otherwise — e.g. due to a broker restart |
-
-There are two kinds of `DEAD`, distinguished by `next_attempt_at`.
-
-| `next_attempt_at` | Meaning                                             |
-|--------------------|------------------------------------------------------|
-| a timestamp        | Once that time passes, the recovery scheduler automatically revives it to `PENDING` |
-| `'infinity'`       | A row judged a permanent failure, or paused by a human. It won't revive until the pause is lifted |
-
-What's classified as a permanent failure: envelope-assembly failure, plus three Kafka exceptions — `RecordTooLargeException` / `TopicAuthorizationException` / `InvalidTopicException` — four in total. Failures without certainty are left as transient.
-
 ### `indexing_job.status`
 
-The worker repository is what transitions the value. The API server only reads it.
+Enqueueing is done by database triggers and the API server; later transitions are done by the worker and the reclaim procedure.
 
-| Value        | Meaning                    |
-|--------------|-----------------------------|
-| `PENDING`    | Right after receiving the Kafka record, before processing |
-| `PROCESSING` | Being processed by the worker |
-| `RETRY_WAIT` | Waiting until `next_retry_at` after a failure |
-| `COMPLETED`  | Completed                    |
-| `FAILED`     | Final failure                |
+| Value          | Meaning                                                    |
+|----------------|------------------------------------------------------------|
+| `PENDING`      | Waiting to be claimed                                      |
+| `PROCESSING`   | Being processed by a worker holding the execution right (`worker_id`, `lease_until`) |
+| `RETRY_WAIT`   | Waiting until `next_retry_at` after a transient failure    |
+| `COMPLETED`    | Finished. The reason is in `outcome`                       |
+| `FAILED`       | Final failure                                              |
 
-| Transition                                       | Trigger                                                                  |
-|----------------------------------------------------|-----------------------------------------------------------------------|
-| (none) → `PENDING`                                 | Inserted with `ON CONFLICT DO NOTHING` upon receiving `INDEXING_REQUESTED` |
-| `PENDING` / `PROCESSING` / `RETRY_WAIT` → `PROCESSING` | Processing starts. Increments `attempt_count` and stamps `worker_id`. If `attempt_count` is already at the cap, the claim itself fails |
-| `PROCESSING` → `RETRY_WAIT`                        | A retryable failure. Stamps `next_retry_at`                             |
-| `PROCESSING` → `COMPLETED`                         | Publishing completed. Overwritten without a guard                       |
-| `PROCESSING` → `FAILED`                            | Retry limit reached, or a non-retryable failure                         |
-| `PENDING` / `PROCESSING` → `FAILED`                | Terminates rows whose claim is blocked because the cap was exceeded. `last_error_code = 'MAX_ATTEMPTS_EXCEEDED'` |
-| `PENDING` / `PROCESSING` / `RETRY_WAIT` → `FAILED` | Terminates an active job because the document was deleted. `last_error_code = 'DOCUMENT_DELETED'` |
+| Transition                                       | Trigger                                                                 |
+|--------------------------------------------------|-------------------------------------------------------------------------|
+| (none) → `PENDING`                               | Version insert trigger (`INDEX`), document delete trigger (`DELETE`), manual reindex by the API server (`INDEX`) |
+| `PENDING` / `RETRY_WAIT` → `PROCESSING`          | Worker claim. `RETRY_WAIT` only once `next_retry_at` has passed. Increments the document's `execution_epoch`, copies it to the job, and records `worker_id`, `lease_until`, and `attempt_count` |
+| `PROCESSING` → `COMPLETED`                       | Processing finished. `INDEXED` for `INDEX`, `DELETED` for `DELETE`, `SKIPPED_DOCUMENT_DELETED` for an `INDEX` job of a deleted document |
+| `PROCESSING` → `RETRY_WAIT`                      | Transient failure with attempts left. `outcome = 'RETRY_SCHEDULED'`      |
+| `PROCESSING` → `FAILED`                          | Permanent failure or attempt limit (default 5) reached. `outcome = 'FAILED_PROCESSING'` |
+| `PROCESSING` → `PENDING`                         | The reclaim procedure returns a job whose lease expired. Heartbeats and result writes from the previous worker are rejected afterwards |
 
-A partial unique index ensures only one job in `PENDING` / `PROCESSING` / `RETRY_WAIT` can exist per `document_version`.
+- Claims pick the candidate with the smallest `enqueue_seq`, and a job is not claimed while an earlier unfinished job of the same document exists.
+- A partial unique index allows only one `PENDING` / `PROCESSING` / `RETRY_WAIT` job per `document_version`.
+- `FAILED` is never revived. A manual reindex enqueues a new job.
+- Whenever a job becomes `PENDING` (enqueue, reclaim), a trigger wakes the worker with `pg_notify('indexing_job', '')` (section 7).
 
 ### `indexing_job.phase`
 
-The processing stage is recorded right before entering each stage.
+Each stage is recorded **just before entering** it.
 
 `DOWNLOADING` → `PARSING` → `CHUNKING` → `EMBEDDING`
+
+### `external_circuit_breaker.state`
+
+| Value         | Meaning                                                    |
+|---------------|------------------------------------------------------------|
+| `CLOSED`      | Normal. Calls are allowed                                  |
+| `OPEN`        | Stops `INDEX` claims and embedding calls until `opened_until`. `DELETE` jobs are still claimed |
+| `HALF_OPEN`   | One worker takes the probe call (`probe_*`). Success closes the breaker; failure opens it again |
+
+The breaker opens after consecutive transient failures. Billing quota exhaustion (429 `insufficient_quota`) and authentication or permission errors open it immediately regardless of the count.
 
 ---
 
 ## 4. Reference rules
 
-- **Tenant isolation**: child tables reference `document` via a composite `(document_id, tenant_id)` FK. `document_id` alone cannot attach a document belonging to a different tenant.
-- **Version consistency**: chunks, jobs, and outbox events use a composite `(document_version_id, document_id)` FK.
-- **`searchable_version_id`**: a back-reference FK from `document` to `document_version`. Added via `ALTER TABLE` after `document_version` is created.
-- **`indexing_job.source_event_id`**: no FK is set. Outbox rows need to be cleanable after publishing, but job history is kept around longer.
+- **Tenant isolation**: child tables reference `document` through a `(document_id, tenant_id)` composite FK. A document from another tenant cannot be attached using `document_id` alone.
+- **Version consistency**: chunks and `INDEX` jobs use a `(document_version_id, document_id)` composite FK.
+- **`DELETE` jobs**: `document_version_id` is `NULL`, so the composite FK is not checked; a direct FK to `document(id)` is added instead. The pairing of `job_type` and `document_version_id` is enforced by a CHECK.
+- **`searchable_version_id`**: a reverse FK from `document` to `document_version`. Added with `ALTER TABLE` after `document_version` is created.
 
 ---
 
 ## 5. Write ownership
 
-Three repositories share one schema. Since which side writes differs by column, here's a summary.
+Two repositories and the database write to one schema. Which side writes each column differs, so it is summarized here.
 
-| Target                                                                 | Writer   |
-|--------------------------------------------------------------------------|---------|
-| All migrations                                                            | API server  |
-| `tenant`, `app_user`, `document_access_scope`                            | API server  |
-| `document` creation, `title`, `latest_upload_version_no`, `deleted_at`    | API server  |
-| `document_version` insert (including `embedding_version_no`)             | API server  |
-| `outbox_event` insert                                                     | DB trigger  |
-| `outbox_event` status/lock/retry columns                                 | Relay     |
-| `outbox_event.retry_of_event_id`                                          | API server (on an indexing retry request) |
-| All of `indexing_job`                                                     | Worker  |
-| All of `document_chunk`                                                   | Worker  |
-| `document_version.chunk_count`, `indexed_at`                             | Worker  |
-| `document.searchable_version_id`, `latest_embedding_version_no`          | Worker  |
+| Target                                                                  | Writer     |
+|-------------------------------------------------------------------------|------------|
+| All migrations                                                          | API server |
+| `tenant`, `app_user`, `document_access_scope`                           | API server |
+| `document` creation, `title`, `latest_upload_version_no`, `deleted_at`  | API server |
+| `document_version` insert (including `embedding_version_no`)            | API server |
+| `indexing_job` insert (version insert, document delete)                 | DB trigger |
+| `indexing_job` insert (manual reindex)                                  | API server |
+| `indexing_job` status, execution-right, and result columns              | Worker     |
+| `indexing_job` expired-lease reclaim (`PROCESSING` → `PENDING`)         | Reclaim procedure (pg_cron) |
+| `document.execution_epoch`                                              | Worker (on claim) |
+| All of `document_chunk`                                                 | Worker     |
+| `document_version.chunk_count`, `indexed_at`                            | Worker     |
+| `document.searchable_version_id`, `latest_embedding_version_no`         | Worker     |
+| `external_circuit_breaker`, `external_circuit_result`                   | Worker     |
+| `indexing_recovery_primary`                                             | `mark_indexing_recovery_primary()` (Patroni callback) |
 
-**Promotion rule**: the worker promotes a candidate version only when its `embedding_version_no` is greater than that of the current `searchable_version_id`. Deleted documents (`deleted_at IS NOT NULL`) are excluded from promotion, so an old job that finishes late can't roll the search version backward.
+Promotion rule: the worker promotes only when the candidate version's `version_no` is greater than that of the current `searchable_version_id`. Deleted documents (`deleted_at IS NOT NULL`) are excluded from promotion, so an old job that finishes late cannot roll the search version back. Saving chunks, completing the version, promotion, and completing the job happen in one transaction.
 
-**Deletion cleanup**: the worker sweeps documents that have `deleted_at` set but still have chunks remaining, and deletes their `document_chunk` rows. Once the chunks are gone, the document is no longer picked up by the next sweep, so running the same sweep repeatedly produces the same result.
+Deletion cleanup: when a document is deleted, a trigger enqueues a `DELETE` job, and the worker deletes the chunks in that job. There is no separate sweep.
 
 ---
 
 ## 6. Indexes
 
-| Index                                    | Target                                                   | Purpose                    |
-|--------------------------------------------|------------------------------------------------------------|-----------------------|
-| `idx_document_tenant_active`              | `document (tenant_id, id) WHERE deleted_at IS NULL`         | Tenant document listing             |
-| `idx_document_pending_purge`              | `document (deleted_at) WHERE deleted_at IS NOT NULL AND purged_at IS NULL` | Deletion cleanup scan               |
-| `idx_document_version_document`           | `document_version (document_id, version_no DESC)`           | Version listing                 |
-| `idx_outbox_pending`                      | `outbox_event (next_attempt_at, id) WHERE status = 'PENDING'` | Relay polling                |
-| `idx_outbox_stuck`                        | `outbox_event (locked_at) WHERE status = 'PUBLISHING'`      | Reclaiming zombie rows               |
-| `idx_outbox_indexing_event_version`       | `outbox_event (document_version_id, created_at DESC) WHERE event_type = 'INDEXING_REQUESTED'` | Looking up indexing events per version        |
-| `uq_indexing_job_active_version`          | `indexing_job (document_version_id) WHERE status IN ('PENDING','PROCESSING','RETRY_WAIT')` | Preventing duplicate in-progress jobs (UNIQUE) |
-| `idx_indexing_job_retry`                  | `indexing_job (status, next_retry_at) WHERE status IN ('PENDING','RETRY_WAIT')` | Looking up retry candidates             |
-| `idx_indexing_job_version`                | `indexing_job (document_version_id, created_at DESC)`        | Indexing history per version            |
-| `idx_chunk_document_version`              | `document_chunk (document_version_id, chunk_no)`             | Looking up chunks per version             |
-| `idx_document_chunk_embedding_hnsw`       | `document_chunk USING hnsw (embedding vector_cosine_ops)`, `m = 16`, `ef_construction = 64` | Vector similarity search             |
-| `idx_document_chunk_content_tokens_tsv`   | `document_chunk USING GIN (to_tsvector('simple', content_tokens))` | Keyword candidate retrieval (BM25 path)   |
-| `idx_document_chunk_content_tsv`          | `document_chunk USING GIN (to_tsvector('simple', content))` | Keyword search over raw content (fallback path)  |
-| `idx_access_scope_principal`              | `document_access_scope (tenant_id, principal_type, principal_id, document_id)` | Looking up documents the principal has access to |
+| Index                                    | Target                                                 | Purpose               |
+|------------------------------------------|--------------------------------------------------------|-----------------------|
+| `idx_document_tenant_active`             | `document (tenant_id, id) WHERE deleted_at IS NULL`    | Tenant document list  |
+| `idx_document_pending_purge`             | `document (deleted_at) WHERE deleted_at IS NOT NULL AND purged_at IS NULL` | Deletion cleanup scan. Not used currently |
+| `idx_document_version_document`          | `document_version (document_id, version_no DESC)`      | Version list          |
+| `uq_indexing_job_active_version`         | `indexing_job (document_version_id) WHERE status IN ('PENDING','PROCESSING','RETRY_WAIT')` | Prevent duplicate in-progress jobs (UNIQUE) |
+| `uq_indexing_job_enqueue_seq`            | `indexing_job (enqueue_seq)`                            | Unique enqueue order (UNIQUE) |
+| `idx_indexing_job_claim_order`           | `indexing_job (enqueue_seq) WHERE status IN ('PENDING','RETRY_WAIT')` | Claim candidates in enqueue order |
+| `idx_indexing_job_document_order`        | `indexing_job (document_id, enqueue_seq) WHERE status IN ('PENDING','PROCESSING','RETRY_WAIT')` | Check for an earlier unfinished job of the same document |
+| `idx_indexing_job_retry_due`             | `indexing_job (next_retry_at) WHERE status = 'RETRY_WAIT'` | Jobs whose retry time has come |
+| `idx_indexing_job_expired_lease`         | `indexing_job (lease_until) WHERE status = 'PROCESSING'` | Reclaim expired leases |
+| `idx_indexing_job_retry`                 | `indexing_job (status, next_retry_at) WHERE status IN ('PENDING','RETRY_WAIT')` | Retry candidates |
+| `idx_indexing_job_version`               | `indexing_job (document_version_id, created_at DESC)`   | Indexing history per version |
+| `idx_circuit_result_generation`          | `external_circuit_result (breaker_name, generation)`    | Call results per generation |
+| `idx_chunk_document_version`             | `document_chunk (document_version_id, chunk_no)`        | Chunks per version    |
+| `idx_document_chunk_embedding_hnsw`      | `document_chunk USING hnsw (embedding vector_cosine_ops)`, `m = 16`, `ef_construction = 64` | Vector similarity search |
+| `idx_document_chunk_content_tokens_tsv`  | `document_chunk USING GIN (to_tsvector('simple', content_tokens))` | Keyword candidate retrieval (BM25 path) |
+| `idx_document_chunk_content_tsv`         | `document_chunk USING GIN (to_tsvector('simple', content))` | Keyword search on raw text (fallback path) |
+| `idx_access_scope_principal`             | `document_access_scope (tenant_id, principal_type, principal_id, document_id)` | Documents a principal can access |
 
 ---
 
-## 7. Triggers
+## 7. Triggers, procedures, and scheduled jobs
 
-| Trigger                           | Timing                                                       | Action                                                              |
-|-------------------------------------|--------------------------------------------------------------|--------------------------------------------------------------------|
-| `trg_document_version_outbox`     | `AFTER INSERT ON document_version`                            | Inserts an `INDEXING_REQUESTED` outbox row, then `pg_notify('outbox_event', <id>)` |
-| `trg_document_deleted_outbox`     | `AFTER UPDATE ON document` (only when `deleted_at` changes from `NULL` to a value) | Inserts a `DOCUMENT_DELETED` outbox row, then `pg_notify`            |
+### Triggers
 
-Because notifications can be lost, the relay must also poll. `pg_notify` has an 8000-byte limit, so only the ID is sent. The relay doesn't actually use that ID — it treats the notification purely as a "wake up" signal, then claims rows where `next_attempt_at <= now()` in a batch.
+| Trigger                              | When                                                         | Action                                     |
+|--------------------------------------|--------------------------------------------------------------|--------------------------------------------|
+| `trg_document_version_enqueue_job`   | `AFTER INSERT ON document_version`                           | Locks the document row, then enqueues an `INDEX` job as `PENDING`. If the version already has an unfinished job, the unique violation fails the request transaction |
+| `trg_document_deleted_enqueue_job`   | `AFTER UPDATE ON document` (only when `deleted_at` goes from `NULL` to a value) | Enqueues a `DELETE` job as `PENDING` |
+| `trg_indexing_job_notify_insert`     | `AFTER INSERT ON indexing_job` (`status = 'PENDING'`)          | `pg_notify('indexing_job', '')`             |
+| `trg_indexing_job_notify_pending`    | `AFTER UPDATE OF status ON indexing_job` (another value → `PENDING`) | `pg_notify('indexing_job', '')`       |
+
+A notification is a wake-up signal delivered after commit. The payload is empty so that multiple notifications in one transaction collapse into one, and the worker picks the actual targets with its claim conditions. Notifications can be lost and there is none for a `RETRY_WAIT` retry time, so the worker also polls.
+
+### Procedures and scheduled jobs
+
+| Name                                         | Run by                   | Action                                                       |
+|----------------------------------------------|--------------------------|--------------------------------------------------------------|
+| `reclaim_expired_indexing_jobs(batch_size)`  | pg_cron `aidocs-reclaim-expired-indexing-jobs` (every 30 seconds, 100 per run) | Returns `PROCESSING` jobs whose `lease_until` has passed to `PENDING` and clears `worker_id`, `lease_until`, and `next_retry_at`. Does nothing on a standby or read-only node, when `indexing_recovery_primary` does not match the current startup and timeline, or within 30 seconds of becoming writable |
+| `mark_indexing_recovery_primary()`           | Patroni `on_start` / `on_restart` / `on_role_change` callbacks | Records the current startup time, WAL timeline, and writable time in `indexing_recovery_primary`. A repeated call for the same startup and timeline does not restart the grace period |
+
+pg_cron must be installed outside Flyway. The migration only registers the job with the installed pg_cron.
 
 ---
 
