@@ -131,6 +131,8 @@ services:
       AWS_ACCESS_KEY_ID: aidocs
       AWS_SECRET_ACCESS_KEY: aidocs1234
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # 워커 기본값은 OpenProxy 전용 SET SERVER ROLE 이라 일반 PostgreSQL 에서는 연결이 실패한다.
+      SPRING_DATASOURCE_HIKARI_CONNECTIONINITSQL: "SELECT 1"
 
 volumes:
   aidocs-postgres-data:
