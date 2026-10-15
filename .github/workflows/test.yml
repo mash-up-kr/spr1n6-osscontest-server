@@ -84,6 +84,9 @@ jobs:
           psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 -f scripts/local-db/00-extensions.sql
           psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 \
             -c "CREATE EXTENSION IF NOT EXISTS pg_cron;"
+          # 알림 테스트는 pgvector/Spring 없이 전용 DB 에 실제 큐 마이그레이션을 적용한다.
+          psql -h localhost -U aidocs -d aidocs -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE aidocs_notify_test;"
 
       - uses: actions/setup-java@v4
         with:
@@ -93,6 +96,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: 테스트
+        env:
+          INDEXING_NOTIFY_TEST_URL: jdbc:postgresql://localhost:5432/aidocs_notify_test
+          INDEXING_NOTIFY_TEST_USERNAME: aidocs
+          INDEXING_NOTIFY_TEST_PASSWORD: aidocs
         run: ./gradlew test
 
       - name: 테스트 리포트 업로드
