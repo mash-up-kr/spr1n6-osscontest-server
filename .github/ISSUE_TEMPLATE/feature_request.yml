@@ -28,8 +28,8 @@ body:
     attributes:
       label: Alternatives considered
       description: |
-        검토한 다른 방법과 고르지 않은 이유를 적어 주세요.
-        Other approaches you considered, and why you did not choose them.
+        검토한 대안과 의사 결정의 이유를 적어 주세요.
+        Alternatives you considered and the reasoning behind your decision.
 
   - type: checkboxes
     id: pr

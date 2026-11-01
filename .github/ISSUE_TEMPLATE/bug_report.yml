@@ -1,5 +1,5 @@
 name: Bug report
-description: 동작이 잘못된 것을 알립니다. / Report something that is not working.
+description: 버그를 제보해 주세요. / Report a bug.
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -8,8 +8,8 @@ body:
     attributes:
       label: What happened
       description: |
-        무엇이 잘못됐는지 적어 주세요.
-        Describe what went wrong.
+        어떤 동작이 잘못됐는지 설명해 주세요.
+        Describe the incorrect behavior.
     validations:
       required: true
 
@@ -18,8 +18,8 @@ body:
     attributes:
       label: How to reproduce
       description: |
-        다시 일으킬 수 있는 순서를 적어 주세요. 요청 예시(curl 등)가 있으면 함께 붙여 주세요.
-        List the steps to reproduce it. Include an example request (curl, etc.) if you have one.
+        재현 방법을 적어 주세요. 요청 예시(curl 등)와 실행 환경을 구체적으로 적어 주시면 좋습니다.
+        Describe how to reproduce it. Include example requests (curl, etc.) and details of your environment.
       placeholder: |
         1.
         2.
