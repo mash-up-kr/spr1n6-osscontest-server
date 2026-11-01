@@ -644,7 +644,7 @@ The response has the same shape as the result array from `POST /api/v1/search`.
 
 ### list_documents
 
-Retrieves the list of documents belonging to the tenant. Supports cursor-based pagination.
+Retrieves the list of documents the user has access to. Supports cursor-based pagination.
 
 | Parameter        | Type    | Required | Description                                                    |
 |------------------|---------|:--------:|-------------------------------------------------------------------|
