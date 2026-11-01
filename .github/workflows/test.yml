@@ -2,10 +2,29 @@
 # 기존 PostgreSQL 서비스에 pg_cron을 설치하고 재시작한 뒤 테스트를 실행한다.
 name: test
 
+# 문서·설정만 바꾼 변경에서는 돌지 않는다. scripts/local-db 는 아래에서 확장을 설치할 때 쓴다.
 on:
   pull_request:
+    paths:
+      - 'src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'scripts/local-db/**'
+      - '.github/workflows/test.yml'
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'scripts/local-db/**'
+      - '.github/workflows/test.yml'
 
 concurrency:
   group: test-${{ github.ref }}
