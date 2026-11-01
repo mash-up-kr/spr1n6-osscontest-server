@@ -11,7 +11,7 @@ This document is for contributors. If you just want to spin up the app and try i
 | Profile | Purpose | DB | Compose file |
 |---|---|---|---|
 | `local` | Development and tests | Container PostgreSQL | `docker-compose.local.yml` |
-| `dev` | Testing against the DB cluster (HA tests, feature demos) | DB cluster (SSH tunnel → OpenProxy) | `docker-compose.dev.yml` |
+| `dev` | Testing against the DB cluster (HA tests, feature demos). Team members only | DB cluster (SSH tunnel → OpenProxy) | `docker-compose.dev.yml` |
 
 With either profile you can run the app with gradle, or bring up server and worker with compose too. When you only touch server code, running just the infrastructure in containers and the app with gradle is the fastest. Tests run against the `local` infrastructure.
 
@@ -36,7 +36,7 @@ No `.env` file is needed. DB, encryption key and MinIO values are fixed for loca
 
 | Variable | Required | Description |
 |---|:--:|---|
-| `OPENAI_API_KEY` | X | Embeddings. Without it the server starts, but indexing and vector search don't work |
+| `OPENAI_API_KEY` | O | Embeddings. Without it the server starts, but indexing and vector search don't work |
 | `COHERE_API_KEY` | X | Search result reranking. Without it results come back in RRF order |
 
 - With gradle, they are read only from the shell environment (`export OPENAI_API_KEY=...`). The `local` profile does not read `.env`.
@@ -52,13 +52,15 @@ Flyway runs automatically on startup.
 
 ## `dev` profile
 
+**The dev profile connects to the DB cluster the team runs, so only team members can use it.** Get the connection details and the pem file from the team. External contributors use the `local` profile.
+
 Connects to the DB cluster (Tmax OpenSQL + Patroni) through OpenProxy. The address is the OpenProxy VIP `10.40.1.100:6432`. It is not reachable from outside the VPC, so you connect through an SSH tunnel via `db-01`. Connection details live in `.env`.
 
 `tunnel.sh start` does not start a DB. It opens a passage from port `15432` on your machine to the VIP. The app treats that port as a local DB, so the tunnel must be open before you start the app.
 
 ```bash
 cp .env.dev.example .env
-# Fill in the password, key and pem path in .env. Get the values and the pem file from the team.
+# Fill in the password, key and pem path in .env.
 
 docker compose -f docker-compose.dev.yml up -d minio minio-init   # same MinIO as the worker (host port 9010)
 ./scripts/tunnel.sh start               # opens the tunnel and keeps it in the background
@@ -247,36 +249,6 @@ Copy `.env.dev.example` to `.env`. The gradle `dev` profile and the dev stack re
 `dev` in the Required column means it's needed only when running with gradle. In the dev stack, compose sets the in-container values.
 
 Do not commit `.env`, real connection details, or the pem file.
-
----
-
-## Collaboration rules
-
-### Branches
-
-| Branch | Purpose |
-|---|---|
-| `main` | Integration branch |
-| `feat/*` | Feature development |
-| `fix/*` | Bug fixes |
-| `refactor/*` | Refactoring |
-| `docs/*` | Documentation work |
-| `chore/*` | Config, build, dependencies |
-
-Branch off from `main` for your work, then merge back into `main` via PR once done.
-
-### Commit messages
-
-The subject line follows the `<type>: <subject>` format. The body can be written freely.
-
-```
-feat: 문서 업로드 API 구현
-fix: 대용량 PDF 파싱 시 OOM 수정
-docs: README 프로파일 구성 추가
-refactor: DocumentService 책임 분리
-test: 문서 검색 통합 테스트 추가
-chore: Spring Boot 4.1.0 업그레이드
-```
 
 ---
 

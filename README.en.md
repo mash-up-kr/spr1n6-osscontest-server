@@ -14,8 +14,6 @@
 
 A document management system that **finds documents by meaning**. You do not need to remember the filename or the exact wording — describe what you are looking for and it surfaces the relevant passages.
 
-The demo service is available [here](https://spr1n6-osscontest-web.vercel.app/). 🚀
-
 ---
 
 ## Overview
@@ -103,7 +101,7 @@ export COHERE_API_KEY=...      # optional
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-PostgreSQL, MinIO, the API server, and the worker all come up together. The server applies the schema with Flyway as it starts. The dev setup that connects to the DB cluster is in the [development guide](docs/DEVELOPMENT.en.md).
+PostgreSQL, MinIO, the API server, and the worker all come up together. The server applies the schema with Flyway as it starts. The dev setup that connects to the DB cluster (team members only) is in the [development guide](docs/DEVELOPMENT.en.md).
 
 Once the server is ready, this returns `UP`.
 
@@ -159,7 +157,7 @@ Search and document lookup are exposed as MCP (Model Context Protocol) tools, so
 | Tool | What it does |
 |---|---|
 | `search_documents` | Runs hybrid search (vector similarity + keyword matching) for a query. Returns matching chunks along with surrounding context and the owning document |
-| `list_documents` | Lists the documents in the tenant with cursor-based pagination |
+| `list_documents` | Lists the documents the user has access to, with cursor-based pagination |
 | `get_document` | Fetches a document's detail directly by `documentId`, without searching |
 
 Parameters are documented in [API specification, section 10](docs/API_SPEC.en.md).

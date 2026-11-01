@@ -11,7 +11,7 @@
 | 프로파일 | 용도 | DB | 컴포즈 파일 |
 |---|---|---|---|
 | `local` | 개발·테스트 | 컨테이너 PostgreSQL | `docker-compose.local.yml` |
-| `dev` | DB 클러스터에 붙여 보는 시험 (HA 시험, 기능 시연) | DB 클러스터 (SSH 터널 → OpenProxy) | `docker-compose.dev.yml` |
+| `dev` | DB 클러스터에 붙여 보는 시험 (HA 시험, 기능 시연). 팀원 전용 | DB 클러스터 (SSH 터널 → OpenProxy) | `docker-compose.dev.yml` |
 
 각 프로파일은 앱을 gradle로 띄우거나, 컴포즈로 server·worker까지 함께 띄운다. 서버 코드만 만질 때는 인프라만 컨테이너로 띄우고 gradle로 앱을 실행하는 쪽이 가장 빠르다. 테스트는 `local` 인프라로 돈다.
 
@@ -36,7 +36,7 @@ docker compose -f docker-compose.local.yml up -d --build
 
 | 변수 | 필수 | 설명 |
 |---|:--:|---|
-| `OPENAI_API_KEY` | X | 임베딩. 없으면 서버는 뜨지만 인덱싱과 벡터 검색이 동작하지 않는다 |
+| `OPENAI_API_KEY` | O | 임베딩. 없으면 서버는 뜨지만 인덱싱과 벡터 검색이 동작하지 않는다 |
 | `COHERE_API_KEY` | X | 검색 결과 재정렬. 없으면 RRF 순서로 응답한다 |
 
 - gradle로 띄울 때는 셸 환경 변수로만 읽는다(`export OPENAI_API_KEY=...`). `local` 프로파일은 `.env`를 읽지 않는다.
@@ -52,13 +52,15 @@ Flyway는 기동할 때 자동으로 실행된다.
 
 ## dev 프로파일
 
+**dev 프로파일은 팀이 운영하는 DB 클러스터에 붙으므로 팀원만 쓸 수 있다.** 접속 정보와 pem 파일은 팀 내부에서 공유받는다. 외부 기여자는 `local` 프로파일을 쓴다.
+
 DB 클러스터(Tmax OpenSQL + Patroni)에 OpenProxy를 거쳐 접속한다. 접속 주소는 OpenProxy VIP `10.40.1.100:6432`이고, VPC 밖에 열려 있지 않아 `db-01`을 거치는 SSH 터널로 붙는다. 접속 정보는 `.env`로 관리한다.
 
 `tunnel.sh start`는 DB를 띄우는 것이 아니라 내 컴퓨터의 `15432` 포트를 VIP까지 이어주는 통로를 여는 명령이다. 앱은 이 포트를 로컬 DB처럼 보고 접속하므로, 앱을 실행하기 전에 터널이 먼저 열려 있어야 한다.
 
 ```bash
 cp .env.dev.example .env
-# .env를 열어 비밀번호·키·pem 경로를 채웁니다. 값과 pem 파일은 팀 내부에서 공유받으세요.
+# .env를 열어 비밀번호·키·pem 경로를 채웁니다.
 
 docker compose -f docker-compose.dev.yml up -d minio minio-init   # 워커와 같은 MinIO (호스트 포트 9010)
 ./scripts/tunnel.sh start               # 터널을 열어둔다. 백그라운드로 유지된다
@@ -247,36 +249,6 @@ ARIA는 Tmax OpenCrypto 1.0에만 있으므로 `dev`는 ARIA-256을, 로컬 Post
 필수 칸의 `dev`는 gradle로 띄울 때만 필요하다는 뜻이다. dev 스택은 컨테이너 안의 값을 컴포즈가 정한다.
 
 `.env`와 실제 접속 정보, pem 파일은 커밋하지 않는다.
-
----
-
-## 협업 규칙
-
-### 브랜치
-
-| 브랜치 | 용도 |
-|---|---|
-| `main` | 통합 브랜치 |
-| `feat/*` | 기능 개발 |
-| `fix/*` | 버그 수정 |
-| `refactor/*` | 리팩터링 |
-| `docs/*` | 문서 작업 |
-| `chore/*` | 설정, 빌드, 의존성 |
-
-작업 브랜치는 `main`에서 분기하고, 완료 후 PR로 `main`에 머지한다.
-
-### 커밋 메시지
-
-제목은 `<type>: <subject>` 형식을 따른다. 바디는 자유롭게 작성한다.
-
-```
-feat: 문서 업로드 API 구현
-fix: 대용량 PDF 파싱 시 OOM 수정
-docs: README 프로파일 구성 추가
-refactor: DocumentService 책임 분리
-test: 문서 검색 통합 테스트 추가
-chore: Spring Boot 4.1.0 업그레이드
-```
 
 ---
 

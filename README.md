@@ -15,8 +15,6 @@
 
 문서를 올려 두면 필요할 때 **의미로 찾아 주는** 문서 관리 시스템입니다. 파일명이나 정확한 단어를 기억하지 못해도, 묻고 싶은 내용을 그대로 적으면 관련된 대목을 찾아 줍니다.
 
-데모 서비스는 [해당 링크](https://spr1n6-osscontest-web.vercel.app/)에서 사용해보실 수 있습니다. 🚀
-
 ---
 
 ## 개요
@@ -105,7 +103,7 @@ export COHERE_API_KEY=...      # 선택
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-PostgreSQL, MinIO, API 서버, 워커가 함께 뜹니다. 스키마는 서버가 기동하면서 Flyway로 적용합니다. DB 클러스터에 붙는 dev 구성은 [개발 가이드](docs/DEVELOPMENT.md)에 있습니다.
+PostgreSQL, MinIO, API 서버, 워커가 함께 뜹니다. 스키마는 서버가 기동하면서 Flyway로 적용합니다. DB 클러스터에 붙는 dev 구성(팀원 전용)은 [개발 가이드](docs/DEVELOPMENT.md)에 있습니다.
 
 서버가 준비되면 다음이 `UP`을 반환합니다.
 
@@ -161,7 +159,7 @@ docker compose -f docker-compose.local.yml down -v     # 데이터까지 지웁�
 | 도구 | 하는 일 |
 |---|---|
 | `search_documents` | 질의어로 하이브리드 검색(벡터 유사도 + 키워드 매칭)합니다. 매칭된 청크와 앞뒤 문맥, 소속 문서 정보를 함께 반환합니다 |
-| `list_documents` | 테넌트에 속한 문서 목록을 커서 기반 페이지네이션으로 조회합니다 |
+| `list_documents` | 사용자에게 접근 권한이 있는 문서 목록을 커서 기반 페이지네이션으로 조회합니다 |
 | `get_document` | `documentId`로 검색 없이 문서 상세를 바로 조회합니다 |
 
 파라미터는 [API 명세 10장](docs/API_SPEC.md)에 있습니다.
