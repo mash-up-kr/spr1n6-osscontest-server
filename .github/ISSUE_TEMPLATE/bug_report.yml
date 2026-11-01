@@ -1,0 +1,76 @@
+name: Bug report
+description: 동작이 잘못된 것을 알립니다. / Report something that is not working.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: |
+        무엇이 잘못됐는지 적어 주세요.
+        Describe what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: |
+        다시 일으킬 수 있는 순서를 적어 주세요. 요청 예시(curl 등)가 있으면 함께 붙여 주세요.
+        List the steps to reproduce it. Include an example request (curl, etc.) if you have one.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: |
+        원래 어떻게 동작해야 하는지 적어 주세요.
+        Describe what you expected to happen.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      description: |
+        어느 실행 환경에서 겪었는지 골라 주세요.
+        Which runtime profile were you using?
+      options:
+        - local
+        - dev
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: |
+        실행한 커밋 해시를 적어 주세요. (`git rev-parse --short HEAD`)
+        The commit you were running. (`git rev-parse --short HEAD`)
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        관련 로그나 오류 응답을 붙여 주세요. 키·비밀번호는 지워 주세요.
+        Paste related logs or error responses. Remove any keys or passwords.
+      render: shell
+
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: 이 문제를 고치는 PR을 올릴 수 있습니다. / I am willing to submit a PR.
