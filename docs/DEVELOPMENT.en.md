@@ -167,7 +167,7 @@ The three nodes are a fixed list. A node whose Patroni is stopped or whose serve
 
 Lag is the leader's written WAL position minus the replica's received WAL position. Nodes are scraped up to 2 seconds apart, so under heavy writes the lag can look larger by that much.
 
-The dashboard is `monitoring/grafana/dashboards/opensql-ha-nodes.json`. Edits made in the UI are not saved, so change the JSON file. The ports are opened only on this Mac.
+The dashboard is `monitoring/grafana/dashboards/opensql-ha-nodes.json`. Edits made in the UI are not saved, so change the JSON file. The Grafana and Prometheus ports are bound to `127.0.0.1`, so they can only be reached from the machine running the stack.
 
 ---
 

@@ -205,6 +205,7 @@ Once connected, the LLM turns natural-language requests ("find the documents abo
 - [Contributing](CONTRIBUTING.en.md) — branches, commit messages, pull requests
 - [Development guide](docs/DEVELOPMENT.en.md) — per-profile workflow, migrations, environment variables
 - [Search design and evaluation](docs/SEARCH.en.md) — hybrid search design, evaluation method, results
+- [DB HA cluster design and tests](docs/OPENSQL_HA_CLUSTER.en.md) — cluster layout, failure handling, using `ha-test` and `monitoring`
 - [Code conventions](docs/CODE_CONVENTIONS.en.md)
 - [API specification](docs/API_SPEC.en.md)
 - [Database schema](docs/SCHEMA.en.md) — tables, state transitions, write ownership

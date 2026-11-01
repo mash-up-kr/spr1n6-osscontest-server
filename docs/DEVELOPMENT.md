@@ -167,7 +167,7 @@ prometheus_exporter_port = 9930
 
 Lag는 Leader가 쓴 WAL 위치에서 Replica가 받은 WAL 위치를 뺀 값이다. 노드마다 수집 시각이 최대 2초 어긋나므로 쓰기가 많을 때는 그만큼 크게 보일 수 있다.
 
-대시보드는 `monitoring/grafana/dashboards/opensql-ha-nodes.json`이다. 화면에서 고친 내용은 저장되지 않으므로 JSON 파일을 고친다. 포트는 이 Mac에만 열린다.
+대시보드는 `monitoring/grafana/dashboards/opensql-ha-nodes.json`이다. 화면에서 고친 내용은 저장되지 않으므로 JSON 파일을 고친다. Grafana·Prometheus 포트는 `127.0.0.1`에만 열리므로 스택을 띄운 컴퓨터에서만 접속할 수 있다.
 
 ---
 

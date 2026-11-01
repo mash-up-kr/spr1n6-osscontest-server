@@ -207,6 +207,7 @@ MCP 클라이언트 설정에 엔드포인트와 인증 헤더를 등록합니�
 - [기여 안내](CONTRIBUTING.md) — 브랜치, 커밋 메시지, PR
 - [개발 가이드](docs/DEVELOPMENT.md) — 프로파일별 개발 방식, 마이그레이션, 환경 변수
 - [검색 설계와 평가](docs/SEARCH.md) — 하이브리드 검색 설계, 평가 방법, 고도화 결과
+- [DB HA 클러스터 설계 및 테스트](docs/OPENSQL_HA_CLUSTER.md) — 클러스터 구성, 장애 대응, `ha-test`·`monitoring` 사용법
 - [코드 컨벤션](docs/CODE_CONVENTIONS.md)
 - [API 명세](docs/API_SPEC.md)
 - [데이터베이스 스키마](docs/SCHEMA.md) — 테이블, 상태 전이, 쓰기 소유권
