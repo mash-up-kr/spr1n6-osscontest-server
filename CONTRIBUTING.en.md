@@ -6,6 +6,16 @@ This describes the procedure to follow when working in this repository. The stan
 
 ---
 
+## Contribution flow
+
+1. Open an [issue](https://github.com/mash-up-kr/spr1n6-osscontest-server/issues/new/choose) first. Use the Bug report form for bugs and the Feature request form for suggestions.
+2. Comment on the issue you want to work on, then branch off of `main`. Include the issue number in the branch name. (`fix/123-upload-timeout`)
+3. Write `Closes #123` under Related Issue in the PR body. The issue closes when the PR is merged.
+
+Small changes such as typo or documentation fixes can go straight to a PR without an issue.
+
+Do not report security vulnerabilities as issues. Report them privately as described in the [security policy](SECURITY.en.md).
+
 ## Branches
 
 | Branch | Purpose |

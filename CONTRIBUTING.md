@@ -6,6 +6,16 @@
 
 ---
 
+## 기여 흐름
+
+1. [이슈](https://github.com/mash-up-kr/spr1n6-osscontest-server/issues/new/choose)를 먼저 올립니다. 버그는 Bug report, 기능 제안은 Feature request 양식을 씁니다.
+2. 작업하려는 이슈에 댓글로 알린 뒤 `main`에서 브랜치를 만듭니다. 브랜치 이름에 이슈 번호를 넣습니다. (`fix/123-upload-timeout`)
+3. PR 본문의 Related Issue에 `Closes #123`을 적습니다. 머지되면 이슈가 함께 닫힙니다.
+
+오타나 문서 수정처럼 작은 변경은 이슈 없이 바로 PR을 올려도 됩니다.
+
+보안 취약점은 이슈로 올리지 않고 [보안 정책](SECURITY.md)에 따라 비공개로 신고합니다.
+
 ## 브랜치
 
 | 브랜치          | 용도          |
